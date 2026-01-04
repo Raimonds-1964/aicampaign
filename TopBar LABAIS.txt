@@ -1,0 +1,154 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
+
+type ActiveKey = "home" | "pricing" | "other";
+
+export function TopBar({ active = "other" }: { active?: ActiveKey }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  const nav = useMemo(
+    () => [
+      { key: "home" as const, label: "Sākums", href: "/" },
+      { key: "pricing" as const, label: "Cenas", href: "/pricing" },
+      { key: "other" as const, label: "Par mums", href: "/par-mums" },
+      { key: "other" as const, label: "Noteikumi", href: "/noteikumi" },
+      { key: "other" as const, label: "Kontakti", href: "/kontakti" },
+    ],
+    []
+  );
+
+  const isActive = (item: { key: ActiveKey; href: string }) => {
+    if (active !== "other") return active === item.key;
+    return pathname === item.href;
+  };
+
+  const linkStyle = (active: boolean): React.CSSProperties => ({
+    color: active ? "#2563eb" : "#334155",
+    textDecoration: "none",
+    fontWeight: active ? 900 : 800,
+    padding: "10px 10px",
+    borderRadius: 12,
+    whiteSpace: "nowrap",
+  });
+
+  return (
+    <header style={{ marginBottom: 28 }}>
+      <div
+        style={{
+          width: "100%",
+          background: "#f8fafc",
+          borderRadius: 22,
+          padding: "14px 18px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 14,
+          }}
+        >
+          {/* LOGO */}
+          <Link href="/" style={{ display: "flex", alignItems: "center" }}>
+            <Image
+              src="/ai-google-ads-logo.png"
+              alt="AI Google Ads"
+              width={150}
+              height={36}
+              priority
+            />
+          </Link>
+
+          {/* DESKTOP NAV */}
+          <nav
+            className="topbar-desktop"
+            style={{ display: "flex", alignItems: "center", gap: 4 }}
+          >
+            {nav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={linkStyle(isActive(item))}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          {/* MOBILE BUTTON */}
+          <button
+            type="button"
+            aria-label={open ? "Aizvērt izvēlni" : "Atvērt izvēlni"}
+            onClick={() => setOpen((v) => !v)}
+            className="topbar-mobile"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              border: 0,
+              background: "white",
+              cursor: "pointer",
+              display: "grid",
+              placeItems: "center",
+              fontWeight: 900,
+            }}
+          >
+            {open ? "✕" : "☰"}
+          </button>
+        </div>
+
+        {/* MOBILE MENU */}
+        {open && (
+          <div
+            className="topbar-mobile"
+            style={{
+              marginTop: 12,
+              borderRadius: 16,
+              background: "white",
+              padding: 10,
+            }}
+          >
+            <div style={{ display: "grid", gap: 4 }}>
+              {nav.map((item) => (
+                <Link
+                  key={`m-${item.href}`}
+                  href={item.href}
+                  style={{
+                    ...linkStyle(isActive(item)),
+                    display: "block",
+                  }}
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style jsx>{`
+        .topbar-mobile {
+          display: none;
+        }
+        .topbar-desktop {
+          display: flex;
+        }
+        @media (max-width: 860px) {
+          .topbar-desktop {
+            display: none;
+          }
+          .topbar-mobile {
+            display: block;
+          }
+        }
+      `}</style>
+    </header>
+  );
+}

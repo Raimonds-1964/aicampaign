@@ -1,0 +1,509 @@
+
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+type Plan = {
+  key: "easy" | "basic" | "pro" | "agency";
+  name: string;
+  badge?: string;
+  priceType: "one_time" | "monthly";
+  price: number; // one-time vai mēneša
+  ctaLabel: string;
+  ctaKind: "link" | "signin";
+  ctaHref?: string; // link gadījumam
+  ctaHint?: string;
+  features: string[];
+};
+
+function formatEUR(n: number) {
+  return `€${Math.round(n)}`;
+}
+
+function PricingButton(props: {
+  label: string;
+  kind: "link" | "signin";
+  href?: string;
+}) {
+  const baseStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: 12,
+    border: "1px solid #2563eb",
+    background: "#2563eb",
+    color: "white",
+    fontWeight: 900,
+    fontSize: 16,
+    cursor: "pointer",
+    textAlign: "center",
+    textDecoration: "none",
+    display: "inline-block",
+  };
+
+  if (props.kind === "link") {
+    return (
+      <a href={props.href || "/"} style={baseStyle}>
+        {props.label}
+      </a>
+    );
+  }
+
+  // NextAuth default sign-in page
+  return (
+    <a href="/api/auth/signin" style={baseStyle}>
+      {props.label}
+    </a>
+  );
+}
+
+/**
+ * Vienkārša "Google Ads stila" emblēma (neidentiska oriģinālajam logotipam):
+ * - 2 “lāpstiņas” + “punkts”
+ * - bez precīzām Google zīmola proporcijām/ikonas kopēšanas
+ */
+function AdsMark() {
+  return (
+    <svg
+      width="34"
+      height="34"
+      viewBox="0 0 64 64"
+      aria-hidden="true"
+      focusable="false"
+      style={{ display: "block" }}
+    >
+      {/* Zilā “lāpstiņa” */}
+      <path
+        d="M27 10c-4 0-7 3-9 7L7 38c-2 4-1 9 3 11 4 2 9 1 11-3L34 23c2-4 1-9-3-11-1-.6-2.6-2-4-2z"
+        fill="#2563eb"
+      />
+      {/* Zaļā “lāpstiņa” */}
+      <path
+        d="M42 13c-3-2-7-1-10 2l-4 5 16 28c2 4 7 5 11 3 4-2 5-7 3-11L44 16c-.6-1.2-1.2-2.3-2-3z"
+        fill="#16a34a"
+      />
+      {/* Dzeltens “punkts” */}
+      <circle cx="18" cy="50" r="7" fill="#f59e0b" />
+    </svg>
+  );
+}
+
+export default function PricingPage() {
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+  const [variant, setVariant] = useState<"A" | "B">("A");
+  const yearlyDiscount = 0.2; // -20%
+
+  // A/B pricing copy (persisted per user)
+  useEffect(() => {
+    try {
+      const key = "pricing_ab_variant";
+      const existing = localStorage.getItem(key);
+      if (existing === "A" || existing === "B") {
+        setVariant(existing);
+        return;
+      }
+      const v = Math.random() < 0.5 ? "A" : "B";
+      localStorage.setItem(key, v);
+      setVariant(v);
+    } catch {}
+  }, []);
+
+  const heroTitle = variant === "A" ? "Atbloķē FREE" : "Turpināt bez ierobežojumiem";
+  const heroSub =
+    variant === "A"
+      ? "Noņem dienas limitu un atbloķē kopēšanu, rediģēšanu un eksportu."
+      : "Ģenerē, kopē, rediģē un eksportē kampaņu bez dienas limita.";
+
+  const paidCtaLabel = variant === "A" ? "Atbloķēt FREE" : "Turpināt bez ierobežojumiem";
+
+  const plans: Plan[] = useMemo(
+    () => [
+      {
+        key: "easy",
+        name: "Easy",
+        priceType: "one_time",
+        price: 29,
+        ctaLabel: "Izveidot kampaņu",
+        ctaKind: "link",
+        ctaHref: "/demo",
+        ctaHint: "Bez abonēšanas un pieslēgšanās",
+        features: [
+          "1 Google Ads kampaņas sagatave",
+          "Atslēgvārdu saraksts",
+          "Reklāmas tekstu paraugs",
+          "Budžeta un iestatījumu ieteikumi",
+          "Kampaņas struktūra (vienkārši un saprotami)",
+          "PDF instrukcija ar soļiem",
+          "Bez Google Ads konta savienošanas",
+        ],
+      },
+      {
+  key: "basic",
+  name: "Basic",
+  badge: "Vispopulārākais",
+  priceType: "monthly",
+  price: 49,
+  ctaLabel: paidCtaLabel,
+  ctaKind: "signin",
+  ctaHint: "Līdz 3 kampaņām mēnesī",
+  features: [
+    "Viens Google Ads konts",
+    "Līdz 3 kampaņām mēnesī",
+    "Google Ads konta savienošana",
+    "AI kampaņu paraugi (preview)",
+    "Atslēgvārdu ieteikumi",
+    "Negatīvie atslēgvārdi (ieteikumi)",
+    "Reklāmu varianti (vairāki virsraksti/apraksti)",
+    "Vietnes saišu (sitelinks) ģenerēšana",
+    "Eksports (PDF / CSV)",
+  ],
+},
+
+      {
+        key: "pro",
+        name: "Pro",
+        priceType: "monthly",
+        price: 99,
+        ctaLabel: paidCtaLabel,
+        ctaKind: "signin",
+        ctaHint: "Līdz 10 kampaņām mēnesī",
+        features: [
+          "Viens Google Ads konts",
+          "Līdz 10 kampaņām mēnesī",
+          "Google Ads konta savienošana",
+          "Pilna kampaņas struktūra (tēmas, grupas)",
+          "Negatīvie atslēgvārdi (ieteikumi)",
+          "Landing page ieteikumi katrai tēmai",
+          "Reklāmu varianti (vairāki virsraksti/apraksti)",
+          "Eksports (PDF / CSV)",
+          "AI ieteikumi uzlabojumiem (CTR/CPC) (draft)",
+          "Saglabāta vēsture (ģenerācijas un izvēles)",
+        ],
+      },
+      {
+        key: "agency",
+        name: "Agency",
+        priceType: "monthly",
+        price: 299,
+        ctaLabel: paidCtaLabel,
+        ctaKind: "signin",
+        ctaHint: "Neierobežots kampaņu skaits",
+        features: [
+          "Vairāki Google Ads konti (MCC)",
+          "Neierobežots kampaņu skaits",
+          "Klientu pārvaldība (vienā vietā)",
+          "Komandas piekļuve",
+          "White-label pārskati (PDF) (draft)",
+          "Kampaņu šabloni aģentūras darbam",
+          "Prioritārs atbalsts",
+          "Onboarding / uzstādīšanas palīdzība",
+          "Paplašināti iestatījumi un darba plūsma",
+        ],
+      },
+    ],
+    [paidCtaLabel]
+  );
+
+  function displayPrice(plan: Plan) {
+    if (plan.priceType === "one_time") {
+      return { primary: `${formatEUR(plan.price)}`, secondary: "vienreiz" };
+    }
+
+    if (billing === "monthly") {
+      return { primary: `${formatEUR(plan.price)}`, secondary: "/ mēn" };
+    }
+
+    // yearly
+    const yearly = plan.price * 12 * (1 - yearlyDiscount);
+    return { primary: `${formatEUR(yearly)}`, secondary: "/ gadā" };
+  }
+
+  return (
+    <main
+      style={{
+        maxWidth: 1080,
+        margin: "0 auto",
+        padding: "46px 16px 70px",
+        fontFamily: "Arial, sans-serif",
+        color: "#0f172a",
+      }}
+    >
+      {/* Top row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 22,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: "white",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <AdsMark />
+          </div>
+
+          <div style={{ fontWeight: 900, letterSpacing: 0 }}>
+            AI Google Ads
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Link
+            href="/"
+            style={{ color: "#334155", textDecoration: "none", fontWeight: 700 }}
+          >
+            Sākums
+          </Link>
+          <Link
+            href="/demo"
+            style={{ color: "#334155", textDecoration: "none", fontWeight: 700 }}
+          >
+            Demo
+          </Link>
+          <Link
+            href="/pricing"
+            style={{ color: "#2563eb", textDecoration: "none", fontWeight: 900 }}
+          >
+            Cenas
+          </Link>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <section
+        style={{
+          borderRadius: 18,
+          padding: "26px 18px",
+          background:
+            "radial-gradient(1200px 380px at 30% 0%, rgba(124,58,237,0.18), transparent 55%), radial-gradient(900px 320px at 80% 10%, rgba(37,99,235,0.18), transparent 60%), #f8fafc",
+          border: "1px solid #e5e7eb",
+          marginBottom: 18,
+        }}
+      >
+        {/* Fonti pielīdzināti plānu stilam (tā pati ģimene/weight), izmēri paliek */}
+        <h1 style={{ margin: 0, fontSize: 40, fontWeight: 900, letterSpacing: 0 }}>
+          Izvēlies savu plānu
+        </h1>
+        <p
+          style={{
+            marginTop: 10,
+            marginBottom: 0,
+            fontSize: 18,
+            fontWeight: 400,
+            color: "#334155",
+            maxWidth: 760,
+          }}
+        >          {heroSub}
+        </p>
+
+        {/* Billing toggle */}
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              background: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: 999,
+              padding: "10px 12px",
+            }}
+          >
+            <span
+              style={{
+                fontWeight: 900,
+                color: billing === "yearly" ? "#111827" : "#64748b",
+              }}
+            >
+              Gadā −20%
+            </span>
+
+            <button
+              onClick={() => setBilling(billing === "monthly" ? "yearly" : "monthly")}
+              aria-label="Mainīt norēķinu periodu"
+              style={{
+                width: 54,
+                height: 30,
+                borderRadius: 999,
+                border: "1px solid #cbd5e1",
+                background: billing === "yearly" ? "#2563eb" : "#e2e8f0",
+                position: "relative",
+                cursor: "pointer",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  left: billing === "yearly" ? 27 : 3,
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  background: "white",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                  transition: "left 150ms ease",
+                }}
+              />
+            </button>
+
+            <span
+              style={{
+                fontWeight: 900,
+                color: billing === "monthly" ? "#111827" : "#64748b",
+              }}
+            >
+              Mēnesī
+            </span>
+          </div>
+
+          <div style={{ marginLeft: "auto" }}>
+            <Link
+              href="/demo"
+              style={{ color: "#2563eb", textDecoration: "none", fontWeight: 900 }}
+            >
+              ← Atpakaļ
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Cards */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+          gap: 16,
+          marginTop: 14,
+        }}
+      >
+        {plans.map((p) => {
+          const price = displayPrice(p);
+          const isPopular = p.key === "basic";
+
+          return (
+            <div
+              key={p.key}
+              style={{
+                background: "white",
+                borderRadius: 18,
+                border: isPopular ? "2px solid #2563eb" : "1px solid #e5e7eb",
+                padding: 18,
+                boxShadow: isPopular
+                  ? "0 10px 30px rgba(37,99,235,0.12)"
+                  : "0 6px 20px rgba(15,23,42,0.06)",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 520,
+              }}
+            >
+              {p.badge && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: -12,
+                    left: 16,
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    background: "#2563eb",
+                    color: "white",
+                    fontWeight: 900,
+                    fontSize: 12,
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  {p.badge}
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <h3 style={{ margin: 0, fontSize: 22 }}>{p.name}</h3>
+                {p.ctaHint && (
+                  <div style={{ color: "#64748b", fontWeight: 800, fontSize: 13 }}>
+                    {p.ctaHint}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 12, display: "flex", alignItems: "baseline", gap: 8 }}>
+                <div style={{ fontSize: 34, fontWeight: 900, letterSpacing: -0.5 }}>
+                  {price.primary}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: "#64748b" }}>
+                  {price.secondary}
+                </div>
+              </div>
+
+              {p.priceType === "monthly" && billing === "yearly" && (
+                <div style={{ marginTop: 6, color: "#16a34a", fontWeight: 900, fontSize: 13 }}>
+                  Ietaupīsi 20% ar gada plānu
+                </div>
+              )}
+
+              <ul
+                style={{
+                  marginTop: 14,
+                  paddingLeft: 18,
+                  color: "#111827",
+                  lineHeight: 1.5,
+                  flexGrow: 1,
+                }}
+              >
+                {p.features.map((f) => (
+                  <li key={f} style={{ marginBottom: 7 }}>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <div style={{ marginTop: 14 }}>
+                <PricingButton label={p.ctaLabel} kind={p.ctaKind} href={p.ctaHref} />
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* Trust line */}
+      <div
+        style={{
+          marginTop: 18,
+          textAlign: "center",
+          color: "#475569",
+          fontWeight: 800,
+        }}
+      >
+        30 dienu garantija - 100% atmaksa
+      </div>
+
+      <div style={{ marginTop: 18, color: "#94a3b8", fontSize: 12 }}>
+        Šī vietne nav pievienota vai saistīta ar Google LLC. Visi Google zīmoli ir Google LLC īpašums.
+      </div>
+    </main>
+  );
+}

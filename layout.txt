@@ -1,0 +1,30 @@
+import "./globals.css";
+import type { Metadata } from "next";
+import { TopBar } from "./components/TopBar";
+import { Footer } from "./components/Footer";
+
+export const metadata: Metadata = {
+  title: "AI Google Ads",
+  description: "No mājaslapas URL līdz strukturētai Google Ads kampaņai.",
+};
+
+const MAX_W = 1200;
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="lv">
+      <body style={{ margin: 0, background: "#fff", color: "#0f172a" }}>
+        <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
+          {/* TopBar platums = tāds pats kā saturs */}
+          <div style={{ maxWidth: MAX_W, margin: "0 auto", paddingTop: 26 }}>
+            <TopBar />
+          </div>
+
+          <div style={{ flex: 1 }}>{children}</div>
+
+          <Footer />
+        </div>
+      </body>
+    </html>
+  );
+}
