@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model GoogleAdsConnection {
+  id                 String   @id @default(cuid())
+  userEmail          String
+  refreshToken       String
+  selectedCustomerId String?
+  createdAt          DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+}

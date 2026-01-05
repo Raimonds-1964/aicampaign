@@ -1,0 +1,60 @@
+# =========================
+# Node / Next.js
+# =========================
+node_modules/
+.next/
+out/
+dist/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.local
+.env.*.local
+
+# =========================
+# Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDEs
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Build / cache
+# =========================
+.cache/
+.turbo/
+
+# =========================
+# Prisma
+# =========================
+prisma/dev.db
+prisma/*.db
+prisma/*.db-journal
+
+# =========================
+# Temporary / backups
+# =========================
+*.log
+*.tmp
+*.swp
+*.bak
+
+# =========================
+# GitHub Desktop leftovers
+# =========================
+*.orig
