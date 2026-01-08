@@ -1,3 +1,5 @@
+"use client";
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -6,13 +8,22 @@ import Link from "next/link";
 export default function CustomersPage() {
   return (
     <main style={{ padding: 40, fontFamily: "Arial, sans-serif" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>Dashboard / Customers</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>
+        Dashboard / Customers
+      </h1>
 
       <p style={{ marginTop: 10, color: "#334155", fontWeight: 700 }}>
-        Šī sadaļa ir īslaicīgi atslēgta, lai Vercel build nekrīt (useSession SSR kļūda).
+        Šī sadaļa ir īslaicīgi atslēgta, lai Vercel build nekrīt.
       </p>
 
-      <div style={{ marginTop: 18, display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <div
+        style={{
+          marginTop: 18,
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <Link
           href="/dashboard/ai"
           style={{
