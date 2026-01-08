@@ -1,8 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 import Link from "next/link";
 
 export default function CustomersPage() {
@@ -16,14 +13,7 @@ export default function CustomersPage() {
         Šī sadaļa ir īslaicīgi atslēgta, lai Vercel build nekrīt.
       </p>
 
-      <div
-        style={{
-          marginTop: 18,
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={{ marginTop: 18, display: "flex", gap: 12, flexWrap: "wrap" }}>
         <Link
           href="/dashboard/ai"
           style={{
