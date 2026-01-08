@@ -1,74 +1,65 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
 import { stripe } from "@/lib/stripe/stripe";
 import { plans, type PlanKey } from "@/lib/stripe/plans";
 
 export const runtime = "nodejs";
 
-type Body = {
-  planKey?: PlanKey;
-  plan?: string; // vecais variants (easy/basic/pro/agency)
-  billing?: "monthly" | "yearly"; // ja kādreiz sūtīsi
-};
-
-function normalizePlanKey(body: Body): PlanKey | null {
-  if (body.planKey) return body.planKey;
-
-  // Backward compatible:
-  // Ja atnāk tikai "easy" -> varam mapot precīzi.
-  // Basic/Pro/Agency bez billing nevar droši noteikt monthly/yearly, tāpēc default uz monthly.
-  if (!body.plan) return null;
-
-  const p = body.plan.toLowerCase().trim();
-
-  if (p === "easy") return "easy";
-  if (p === "basic") return (body.billing === "yearly" ? "basic_yearly" : "basic_monthly");
-  if (p === "pro") return (body.billing === "yearly" ? "pro_yearly" : "pro_monthly");
-  if (p === "agency") return (body.billing === "yearly" ? "agency_yearly" : "agency_monthly");
-
-  return null;
+function getAppUrl(reqUrl: string) {
+  // droši: production -> NEXT_PUBLIC_APP_URL, fallback -> NEXTAUTH_URL, pēdējais -> origin no request
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    new URL(reqUrl).origin
+  );
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = (await req.json()) as Body;
+async function createCheckout(planKey: PlanKey, reqUrl: string) {
+  const plan = plans[planKey];
+  const appUrl = getAppUrl(reqUrl);
 
-    const planKey = normalizePlanKey(body);
-    if (!planKey) {
-      return NextResponse.json({ error: "Missing planKey" }, { status: 400 });
+  const session = await stripe.checkout.sessions.create({
+    mode: plan.mode,
+    line_items: [{ price: plan.priceId, quantity: 1 }],
+    success_url: `${appUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/pricing`,
+    allow_promotion_codes: true,
+    billing_address_collection: "auto",
+  });
+
+  return session.url!;
+}
+
+// ✅ GET: lai var testēt pārlūkā: /api/stripe/checkout?planKey=easy
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const planKey = searchParams.get("planKey") as PlanKey | null;
+
+    if (!planKey || !plans[planKey]) {
+      return NextResponse.redirect(new URL("/pricing", req.url));
     }
 
-    const plan = plans[planKey];
-    if (!plan) {
+    const url = await createCheckout(planKey, req.url);
+    return NextResponse.redirect(url, 303);
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Checkout error" }, { status: 500 });
+  }
+}
+
+// ✅ POST: ja tev pricing poga sūta POST ar JSON body { planKey: "easy" }
+export async function POST(req: Request) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const planKey = body?.planKey as PlanKey | undefined;
+
+    if (!planKey || !plans[planKey]) {
       return NextResponse.json({ error: "Invalid planKey" }, { status: 400 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
-    if (!appUrl) {
-      return NextResponse.json(
-        { error: "Missing NEXT_PUBLIC_APP_URL / NEXTAUTH_URL" },
-        { status: 500 }
-      );
-    }
-
-    const successUrl = `${appUrl}/success?session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${appUrl}/pricing`;
-
-    const session = await stripe.checkout.sessions.create({
-      mode: plan.mode,
-      line_items: [{ price: plan.priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      allow_promotion_codes: true,
-      billing_address_collection: "auto",
-    });
-
-    return NextResponse.json({ url: session.url });
-  } catch (err: any) {
-    const msg =
-      err instanceof Stripe.errors.StripeError
-        ? err.message
-        : err?.message || "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const url = await createCheckout(planKey, req.url);
+    // te var atgriezt JSON, ja frontend grib window.location = url
+    return NextResponse.json({ url });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Checkout error" }, { status: 500 });
   }
 }
