@@ -3,24 +3,6 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <main style={{ paddingBottom: 80, fontFamily: "Arial, sans-serif" }}>
-      {/* ✅ BUILD MARKER (neapstrīdams tests) */}
-      <div
-        style={{
-          position: "fixed",
-          top: 10,
-          right: 10,
-          zIndex: 999999,
-          background: "red",
-          color: "white",
-          padding: "8px 10px",
-          borderRadius: 10,
-          fontWeight: 900,
-          fontFamily: "Arial",
-        }}
-      >
-        BUILD MARKER: 2026-01-08
-      </div>
-
       {/* HERO */}
       <section style={{ marginTop: 18 }}>
         <div
@@ -160,6 +142,7 @@ export default function HomePage() {
             </div>
 
             <div>
+              {/* ✅ MAINĪTS: bija /dashboard/ai, tagad /demo */}
               <Link
                 href="/demo"
                 style={{
