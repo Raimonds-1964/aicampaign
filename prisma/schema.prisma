@@ -7,11 +7,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model GoogleAdsConnection {
-  id                 String   @id @default(cuid())
-  userEmail          String
-  refreshToken       String
-  selectedCustomerId String?
-  createdAt          DateTime @default(now())
-  updatedAt           DateTime @default(now()) @updatedAt
+enum PlanKey {
+  easy
+  basic
+  pro
+  agency
+}
+
+model User {
+  id                 String        @id @default(cuid())
+  email              String        @unique
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  // Stripe
+  stripeCustomerId   String?       @unique
+  plan               PlanKey       @default(easy)
+
+  subscriptions      Subscription[]
+}
+
+model Subscription {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  stripeSubscriptionId  String   @unique
+  stripePriceId         String
+  status                String
+  currentPeriodEnd      DateTime?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }

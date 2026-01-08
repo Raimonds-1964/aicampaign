@@ -1,69 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import React from "react";
+
+type PlanKey =
+  | "easy"
+  | "basic_monthly"
+  | "basic_yearly"
+  | "pro_monthly"
+  | "pro_yearly"
+  | "agency_monthly"
+  | "agency_yearly";
 
 type Props = {
+  planKey: PlanKey;
   label: string;
-  plan: "easy" | "basic" | "pro" | "agency";
-  mode: "payment" | "subscription";
   className?: string;
-  style?: React.CSSProperties;
 };
 
-export default function CTAButton({ label, plan, mode, className, style }: Props) {
-  const [loading, setLoading] = useState(false);
+export default function CTAButton({ planKey, label, className }: Props) {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  async function onClick() {
+  const handleCheckout = async () => {
     try {
+      setError(null);
       setLoading(true);
 
-      const r = await fetch("/api/stripe/checkout", {
+      const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, mode }),
+        body: JSON.stringify({ planKey }),
       });
 
-      const text = await r.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        // ignore
+      const data: { url?: string; error?: string } = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Checkout request failed");
       }
 
-      if (!r.ok || !data?.ok || !data?.url) {
-        console.error("Stripe checkout error:", { status: r.status, text, data });
-        alert("Neizdevās atvērt apmaksu. Lūdzu pamēģini vēlreiz.");
-        return;
+      if (!data?.url) {
+        throw new Error("No Stripe Checkout URL returned");
       }
 
-      window.location.href = data.url; // Stripe hosted checkout
-    } catch (e) {
-      console.error(e);
-      alert("Neizdevās atvērt apmaksu. Lūdzu pamēģini vēlreiz.");
-    } finally {
+      // Stripe Checkout redirect (vienmēr!)
+      window.location.href = data.url;
+    } catch (e: any) {
+      setError(e?.message ?? "Something went wrong");
       setLoading(false);
     }
-  }
-
-  const base: React.CSSProperties = {
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: 12,
-    border: "1px solid #2563eb",
-    background: "#2563eb",
-    color: "white",
-    fontWeight: 900,
-    fontSize: 16,
-    cursor: loading ? "default" : "pointer",
-    opacity: loading ? 0.75 : 1,
-    textAlign: "center",
-    ...style,
   };
 
   return (
-    <button className={className} style={base} onClick={onClick} disabled={loading}>
-      {loading ? "Atver apmaksu..." : label}
-    </button>
+    <div>
+      <button
+        type="button"
+        onClick={handleCheckout}
+        disabled={loading}
+        className={
+          className ??
+          "inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium bg-black text-white hover:opacity-90 disabled:opacity-60"
+        }
+      >
+        {loading ? "Redirecting…" : label}
+      </button>
+
+      {error ? (
+        <p className="mt-2 text-sm text-red-600">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }

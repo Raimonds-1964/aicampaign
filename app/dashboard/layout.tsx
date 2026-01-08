@@ -1,6 +1,14 @@
-import type { ReactNode } from "react";
-import DashboardGate from "./DashboardGate";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
-  return <DashboardGate>{children}</DashboardGate>;
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <section style={{ padding: 24 }}>
+      {children}
+    </section>
+  );
 }
