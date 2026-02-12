@@ -6,7 +6,8 @@
     "dev": "set NEXT_DISABLE_TURBOPACK=1 && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy:en": "git add aicampaign-en package.json package-lock.json .gitignore && git diff --cached --quiet || (git commit -m \"Deploy EN\" && git push)"
   },
   "dependencies": {
     "@prisma/client": "^6.19.1",
