@@ -126,7 +126,7 @@ export default function PricingPage() {
         priceType: "monthly",
         price: 49,
         ctaLabel: paidCtaLabel,
-        ctaHint: "Up to 5 campaigns",
+        ctaHint: "Up to 10 campaigns",
         forWho: "Small businesses running ongoing ads",
         outcome:
           "A managed workspace for one website: build campaigns and keep them under AI-assisted control.",
