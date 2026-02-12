@@ -1,0 +1,67 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+@import "tailwindcss";
+
+/* ✅ Default = dark. Tas noņem balto flash uz /agency cold start.
+   Publiskajai daļai SiteChrome tāpat uzliek bg-white. */
+:root {
+  --background: #0b0b0b;
+  --foreground: #ededed;
+}
+
+/* Ja gribi atšķirīgu “dark” toni pēc sistēmas, vari paturēt — bet te tas būs vienāds */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0b0b;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+html {
+  overflow-y: scroll;
+}
+
+/* Fix: native select option krāsas tumšā UI (desktop bieži ignorē option className) */
+.agency-owner-select option {
+  background: #ffffff;
+  color: #000000;
+}
+
+/* ✅ piespiež dropdown option baltu fonu + melnu tekstu */
+select.white-select,
+select.white-select option {
+  background: #fff !important;
+  color: #000 !important;
+}
+
+/* ✅ WhiteSelect: uzspiež baltu select + dropdown */
+select.white-select {
+  background-color: #fff !important;
+  color: #000 !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+
+  /* svarīgi: dažos browseros citādi option krāsas neņem */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+select.white-select option,
+select.white-select optgroup {
+  background-color: #fff !important;
+  color: #000 !important;
+}

@@ -1,0 +1,68 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+@import "tailwindcss";
+
+/* ✅ Default = dark. Prevents white flash on /agency cold start.
+   The public area (SiteChrome) applies bg-white separately. */
+:root {
+  --background: #0b0b0b;
+  --foreground: #ededed;
+}
+
+/* If you want a different system-based dark tone, you can keep this —
+   but here it stays consistent. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0b0b;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+html {
+  overflow-y: scroll;
+}
+
+/* Fix: native select option colors in dark UI (desktop often ignores option className) */
+.agency-owner-select option {
+  background: #ffffff;
+  color: #000000;
+}
+
+/* ✅ Force dropdown options to white background + black text */
+select.white-select,
+select.white-select option {
+  background: #fff !important;
+  color: #000 !important;
+}
+
+/* ✅ WhiteSelect: force white select + dropdown */
+select.white-select {
+  background-color: #fff !important;
+  color: #000 !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+
+  /* Important: some browsers won't apply option colors otherwise */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+select.white-select option,
+select.white-select optgroup {
+  background-color: #fff !important;
+  color: #000 !important;
+}
