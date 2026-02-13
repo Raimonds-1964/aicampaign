@@ -11,20 +11,12 @@ export type Campaign = {
   name: string;
   status: CampaignStatus;
 
-  /** 0..100 (overall campaign health) */
+  /** 0..100 */
   health: number;
-
-  /** string label for UI */
   healthLabel: CampaignHealth;
-
-  /** ✅ alias for UI components that expect "ok|warning|critical" */
-  healthStatus: CampaignHealth;
 
   dailyBudget: number;
   spentToday: number;
-
-  /** 0..999 (spentToday / dailyBudget * 100), useful for UI pills */
-  budgetPct: number;
 
   googleAdsUrl?: string;
 };
@@ -52,37 +44,10 @@ export type AgencyState = {
   deleteCampaign: (campaignId: string) => void;
 };
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function calcBudgetPct(spent: number, budget: number) {
-  const s = Number(spent) || 0;
-  const b = Number(budget) || 0;
-  if (!b || b <= 0) return 0;
-  return clamp((s / b) * 100, 0, 999);
-}
-
 function inferHealthLabel(h: number): CampaignHealth {
   if (h >= 70) return "ok";
   if (h >= 40) return "warning";
   return "critical";
-}
-
-function normalizeCampaign(raw: Omit<Campaign, "budgetPct" | "healthStatus">): Campaign {
-  const dailyBudget = Number(raw.dailyBudget) || 0;
-  const spentToday = Number(raw.spentToday) || 0;
-
-  const healthLabel = raw.healthLabel ?? inferHealthLabel(Number(raw.health) || 0);
-
-  return {
-    ...raw,
-    dailyBudget,
-    spentToday,
-    budgetPct: calcBudgetPct(spentToday, dailyBudget),
-    healthLabel,
-    healthStatus: healthLabel, // ✅ important for UI
-  };
 }
 
 function clampToLimits(state: Pick<AgencyState, "limits" | "accounts" | "campaigns">) {
@@ -91,6 +56,7 @@ function clampToLimits(state: Pick<AgencyState, "limits" | "accounts" | "campaig
   const accounts = state.accounts.slice(0, limits.maxAccounts);
   const allowedAccountIds = new Set(accounts.map((a) => a.id));
 
+  // Basic: max 5 campaigns per account
   const campaigns = state.campaigns
     .filter((c) => allowedAccountIds.has(c.accountId))
     .slice(0, limits.maxCampaignsPerAccount);
@@ -102,12 +68,12 @@ function buildDemoCampaigns(accountId: string, kind: "ai" | "own"): Campaign[] {
   const baseUrl = "https://ads.google.com/";
   const prefix = kind === "ai" ? "AI" : "My";
 
-  const raw = [
+  return [
     {
       id: `${kind}-c-101`,
       accountId,
       name: `${prefix} Brand — Search`,
-      status: "active" as const,
+      status: "active",
       health: 86,
       healthLabel: inferHealthLabel(86),
       dailyBudget: 30,
@@ -118,7 +84,7 @@ function buildDemoCampaigns(accountId: string, kind: "ai" | "own"): Campaign[] {
       id: `${kind}-c-102`,
       accountId,
       name: `${prefix} Search — Services`,
-      status: "active" as const,
+      status: "active",
       health: 72,
       healthLabel: inferHealthLabel(72),
       dailyBudget: 25,
@@ -129,7 +95,7 @@ function buildDemoCampaigns(accountId: string, kind: "ai" | "own"): Campaign[] {
       id: `${kind}-c-103`,
       accountId,
       name: `${prefix} Search — High-Intent Keywords`,
-      status: "paused" as const,
+      status: "paused",
       health: 64,
       healthLabel: inferHealthLabel(64),
       dailyBudget: 20,
@@ -140,7 +106,7 @@ function buildDemoCampaigns(accountId: string, kind: "ai" | "own"): Campaign[] {
       id: `${kind}-c-104`,
       accountId,
       name: `${prefix} Search — Competitor Queries`,
-      status: "active" as const,
+      status: "active",
       health: 48,
       healthLabel: inferHealthLabel(48),
       dailyBudget: 18,
@@ -151,7 +117,7 @@ function buildDemoCampaigns(accountId: string, kind: "ai" | "own"): Campaign[] {
       id: `${kind}-c-105`,
       accountId,
       name: `${prefix} Remarketing — Returning Visitors`,
-      status: "active" as const,
+      status: "active",
       health: 79,
       healthLabel: inferHealthLabel(79),
       dailyBudget: 15,
@@ -159,8 +125,6 @@ function buildDemoCampaigns(accountId: string, kind: "ai" | "own"): Campaign[] {
       googleAdsUrl: baseUrl,
     },
   ];
-
-  return raw.map(normalizeCampaign);
 }
 
 export const useAgencyStore = create<AgencyState>((set, get) => {
@@ -169,10 +133,11 @@ export const useAgencyStore = create<AgencyState>((set, get) => {
     maxCampaignsPerAccount: 5,
   };
 
+  // ✅ Start with a demo account + 5 campaigns (as requested)
   const initialAccounts: Account[] = [
     {
       id: "acc-1",
-      name: "Acme Home Services",
+      name: "Acme Demo Account",
       googleAdsUrl: "https://ads.google.com/",
     },
   ];
@@ -190,7 +155,9 @@ export const useAgencyStore = create<AgencyState>((set, get) => {
 
       const next = {
         ...get(),
-        accounts: [{ id: accountId, name: "My Account", googleAdsUrl: "https://ads.google.com/" }],
+        accounts: [
+          { id: accountId, name: "My Account", googleAdsUrl: "https://ads.google.com/" },
+        ],
         campaigns: buildDemoCampaigns(accountId, "own"),
       };
 
@@ -204,7 +171,9 @@ export const useAgencyStore = create<AgencyState>((set, get) => {
 
       const next = {
         ...get(),
-        accounts: [{ id: accountId, name: "AI Account", googleAdsUrl: "https://ads.google.com/" }],
+        accounts: [
+          { id: accountId, name: "AI Demo Account", googleAdsUrl: "https://ads.google.com/" },
+        ],
         campaigns: buildDemoCampaigns(accountId, "ai"),
       };
 

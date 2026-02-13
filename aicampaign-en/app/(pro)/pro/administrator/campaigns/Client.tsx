@@ -186,7 +186,7 @@ export default function Client() {
                 <th className="px-5 py-3">Campaign</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3 text-right">Budget</th>
-                <th className="px-5 py-3 text-right">Actio</th>
+                <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
 

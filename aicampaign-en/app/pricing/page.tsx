@@ -163,7 +163,7 @@ export default function PricingPage() {
           "Bring existing campaigns into AI control",
         ],
         features: [
-          "One own or AI account included, with the option to add additional accounts for $99/mo per account",
+          "One own or AI account included, with the option to add additional accounts for $99/month per account",
           "AI campaign drafts",
           "Fully editable output",
           "Ad copy generation and editing",
@@ -191,7 +191,7 @@ export default function PricingPage() {
           "Collaborative workspace for managing unlimited campaigns across clients, with role-based access.",
         highlights: ["Admin/Manager dashboards", "Assign campaigns to managers", "Manager performance oversight"],
         features: [
-          "One own or AI account included, with the option to add additional accounts for $99/mo per account",
+          "One own or AI account included, with the option to add additional accounts for $99/month per account",
           "Unlimited campaigns with AI-assisted control",
           "Bring existing campaigns into AI control",
           "AI campaign drafts",

@@ -242,7 +242,7 @@ export default function CampaignWizard({
 
         <div>
           <div className={label}>Language</div>
-          <div className={help}>Choose</div>
+          <div className={help}>en / es</div>
           <select className={input} value={language} onChange={(e) => setLanguage(e.target.value)}>
             <option className="bg-white/90 text-black" value="en">
               en

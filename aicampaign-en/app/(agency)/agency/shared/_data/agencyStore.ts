@@ -84,7 +84,9 @@ const initialState: AgencyState = {
           health: "warning",
           dailyBudget: 60,
           spentToday: 41.5,
-          keywords: [{ keyword: "ecommerce brand", page1: 0.58, top: 0.17, clicks: 25, cost: 21.4, note: "Needs work" }],
+          keywords: [
+            { keyword: "ecommerce brand", page1: 0.58, top: 0.17, clicks: 25, cost: 21.4, note: "Needs work" },
+          ],
         },
         {
           id: "c-202",
@@ -122,7 +124,7 @@ const initialState: AgencyState = {
     /** ✅ Additional demo account for testing */
     {
       id: "acc-2",
-      name: "Summit Financial Group",
+      name: "Summit Financial Group (Demo)",
       campaigns: [
         {
           id: "c-501",
@@ -251,7 +253,11 @@ function makeId(prefix: string) {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
 
-function updateCampaign(next: AgencyState, campaignId: string, updater: (c: Campaign) => Campaign): AgencyState {
+function updateCampaign(
+  next: AgencyState,
+  campaignId: string,
+  updater: (c: Campaign) => Campaign
+): AgencyState {
   return {
     ...next,
     accounts: next.accounts.map((a) => ({
@@ -262,7 +268,9 @@ function updateCampaign(next: AgencyState, campaignId: string, updater: (c: Camp
 }
 
 function flattenCampaigns(s: AgencyState) {
-  return s.accounts.flatMap((a) => a.campaigns.map((c) => ({ ...c, accountId: a.id })));
+  return s.accounts.flatMap((a) =>
+    a.campaigns.map((c) => ({ ...c, accountId: a.id }))
+  );
 }
 
 /** ===== Selectors ===== */
@@ -335,7 +343,9 @@ export const agencyActions = {
     setState({
       ...state,
       accounts: state.accounts.map((a) =>
-        a.id !== accountId ? a : { ...a, campaigns: a.campaigns.map((c) => ({ ...c, ownerId: managerId })) }
+        a.id !== accountId
+          ? a
+          : { ...a, campaigns: a.campaigns.map((c) => ({ ...c, ownerId: managerId })) }
       ),
     });
   },
@@ -345,7 +355,9 @@ export const agencyActions = {
     setState({
       ...state,
       accounts: state.accounts.map((a) =>
-        a.id !== accountId ? a : { ...a, campaigns: a.campaigns.map((c) => ({ ...c, ownerId: ADMIN_OWNER_ID })) }
+        a.id !== accountId
+          ? a
+          : { ...a, campaigns: a.campaigns.map((c) => ({ ...c, ownerId: ADMIN_OWNER_ID })) }
       ),
     });
   },
@@ -396,7 +408,8 @@ export const agencyActions = {
    */
   addAiAccount() {
     const allowMulti =
-      typeof window !== "undefined" && window.localStorage.getItem("agency_allow_multi_accounts") === "1";
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("agency_allow_multi_accounts") === "1";
 
     if (!allowMulti && state.accounts.length >= 1) return null;
 
@@ -407,7 +420,8 @@ export const agencyActions = {
 
   addOwnAccount() {
     const allowMulti =
-      typeof window !== "undefined" && window.localStorage.getItem("agency_allow_multi_accounts") === "1";
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("agency_allow_multi_accounts") === "1";
 
     if (!allowMulti && state.accounts.length >= 1) return null;
 
@@ -434,7 +448,9 @@ export const agencyActions = {
 
     setState({
       ...state,
-      accounts: state.accounts.map((a) => (a.id === accountId ? { ...a, campaigns: [c, ...a.campaigns] } : a)),
+      accounts: state.accounts.map((a) =>
+        a.id === accountId ? { ...a, campaigns: [c, ...a.campaigns] } : a
+      ),
     });
 
     return c;
