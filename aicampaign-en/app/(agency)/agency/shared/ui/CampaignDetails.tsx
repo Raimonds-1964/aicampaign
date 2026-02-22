@@ -1,8 +1,9 @@
+// app/(agency)/agency/shared/ui/CampaignDetails.tsx
 "use client";
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 
 import SectionHeader from "@/app/(agency)/agency/administrator/_ui/SectionHeader";
 import KeywordsTable from "@/app/(agency)/agency/administrator/_ui/KeywordsTable";
@@ -20,12 +21,6 @@ import {
 type Health = "ok" | "warning" | "critical";
 type Mode = "admin" | "manager";
 
-/**
- * Expanded props to support:
- * - legacy mode (mode/accountId/campaignId)
- * - newer callers (titlePrefix/campaign/accountName/googleAdsHref/topRightLabel)
- * + NEW: onBack (so callers can use router.back())
- */
 type Props = {
   // ===== legacy =====
   mode?: Mode;
@@ -90,8 +85,168 @@ function budgetBarClass(pct: number) {
   return "bg-emerald-300/80";
 }
 
+type AiParamGroup =
+  | "Budget & delivery"
+  | "Search terms"
+  | "Ads & assets"
+  | "Bids"
+  | "Landing page"
+  | "Audience"
+  | "Geo"
+  | "Tracking"
+  | "Auction & quality";
+
+type AiParamDef = {
+  key: string;
+  title: string;
+  group: AiParamGroup;
+  description: string;
+  defaultSelected?: boolean;
+};
+
+const AI_PARAM_CATALOG: AiParamDef[] = [
+  {
+    key: "budget_pacing",
+    title: "Budget pacing",
+    group: "Budget & delivery",
+    description:
+      "Daily budget pacing, overspend/underspend and delivery stability.",
+    defaultSelected: true,
+  },
+  {
+    key: "search_terms",
+    title: "Search terms (irrelevant queries)",
+    group: "Search terms",
+    description:
+      "Wasted spend signals from irrelevant queries + negatives suggestions.",
+  },
+  {
+    key: "ads_strength",
+    title: "Ad strength (RSA assets)",
+    group: "Ads & assets",
+    description:
+      "Headline/description variety, ad strength signals and asset coverage.",
+  },
+  {
+    key: "bids_cpc",
+    title: "CPC / bid adjustments",
+    group: "Bids",
+    description:
+      "Avg CPC changes, bid pressure, and basic bid adjustment recommendations.",
+  },
+  {
+    key: "landing_page",
+    title: "Landing page relevance",
+    group: "Landing page",
+    description:
+      "Message match, page relevance and basic UX/speed mismatch signals.",
+  },
+  {
+    key: "audiences",
+    title: "Audience signals / remarketing",
+    group: "Audience",
+    description:
+      "Audience signals, remarketing coverage and expansion opportunities.",
+  },
+  {
+    key: "geo",
+    title: "Geo (where spend is going)",
+    group: "Geo",
+    description:
+      "Location performance monitoring and exclusion / bid adjustment signals.",
+  },
+  {
+    key: "conversion_tracking",
+    title: "Conversion tracking",
+    group: "Tracking",
+    description: "Conversion completeness and tracking health signals.",
+  },
+
+  // +8 critical parameters
+  {
+    key: "impression_share",
+    title: "Impression share (lost to budget/rank)",
+    group: "Auction & quality",
+    description:
+      "Monitor Search IS + Lost IS (budget/rank) to catch hidden growth caps and rank pressure.",
+  },
+  {
+    key: "quality_score",
+    title: "Quality score signals",
+    group: "Auction & quality",
+    description:
+      "Quality Score + components (expected CTR, ad relevance, landing page experience) where available.",
+  },
+  {
+    key: "policy_issues",
+    title: "Policy / disapprovals",
+    group: "Ads & assets",
+    description:
+      "Detect disapproved ads/assets and policy risks that block delivery or reduce reach.",
+  },
+  {
+    key: "rsa_asset_coverage",
+    title: "RSA asset coverage & pinning risk",
+    group: "Ads & assets",
+    description:
+      "Missing assets, weak coverage, or heavy pinning that reduces learning and performance.",
+  },
+  {
+    key: "device_performance",
+    title: "Device performance split",
+    group: "Bids",
+    description:
+      "Compare performance by device to suggest bid adjustments or landing page fixes.",
+  },
+  {
+    key: "geo_outliers",
+    title: "Geo outliers (spend without results)",
+    group: "Geo",
+    description:
+      "Spot locations with spend but poor conversion/value to exclude or down-bid quickly.",
+  },
+  {
+    key: "ad_schedule_hours",
+    title: "Ad schedule (hours/day) outliers",
+    group: "Budget & delivery",
+    description:
+      "Find expensive hours/days and propose schedule tuning to protect CPA/ROAS.",
+  },
+  {
+    key: "landing_page_speed",
+    title: "Landing page speed / experience risk",
+    group: "Landing page",
+    description:
+      "Flag likely speed/UX friction that harms CVR and QS (useful before deeper audits).",
+  },
+];
+
+function normalizeToSet(v: unknown): Set<string> {
+  if (Array.isArray(v)) return new Set(v.map(String));
+  return new Set<string>();
+}
+
+function safeReadJson(key: string): unknown {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteJson(key: string, value: unknown) {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
+
 export default function CampaignDetails(props: Props) {
-  // 1) Hooks are always called in the same order
   useAgencyStore();
 
   const [mounted, setMounted] = useState(false);
@@ -101,12 +256,64 @@ export default function CampaignDetails(props: Props) {
   const [keywordsOpen, setKeywordsOpen] = useState(true);
   const [approved, setApproved] = useState<Record<string, boolean>>({});
 
-  // If caller provides campaign/accountName, use those (priority).
-  // Otherwise fall back to store lookup by accountId/campaignId.
+  // ✅ Default collapsed
+  const [aiParamsOpen, setAiParamsOpen] = useState(false);
+  const [aiParamQuery, setAiParamQuery] = useState("");
+
   const campaignId = (props.campaignId ?? props.campaign?.id ?? "").toString();
   const accountId = (props.accountId ?? props.campaign?.accountId ?? "").toString();
 
-  // 2) paramCards are stable (not store-dependent)
+  const aiSelectedStorageKey = `acc:${accountId}:cmp:${campaignId}:ai_params_selected`;
+
+  const defaultSelectedKeys = useMemo(() => {
+    return AI_PARAM_CATALOG.filter((p) => p.defaultSelected).map((p) => p.key);
+  }, []);
+
+  const [selectedAiParamKeys, setSelectedAiParamKeys] = useState<Set<string>>(
+    () => new Set(defaultSelectedKeys)
+  );
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!accountId || !campaignId) return;
+
+    const v = safeReadJson(aiSelectedStorageKey);
+    const s = normalizeToSet(v);
+
+    if (s.size === 0) {
+      setSelectedAiParamKeys(new Set(defaultSelectedKeys));
+      return;
+    }
+    setSelectedAiParamKeys(s);
+  }, [mounted, accountId, campaignId, aiSelectedStorageKey, defaultSelectedKeys]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!accountId || !campaignId) return;
+    safeWriteJson(aiSelectedStorageKey, Array.from(selectedAiParamKeys));
+  }, [mounted, accountId, campaignId, aiSelectedStorageKey, selectedAiParamKeys]);
+
+  const toggleAiParam = useCallback((key: string) => {
+    setSelectedAiParamKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const selectRecommended = useCallback(() => {
+    setSelectedAiParamKeys(new Set(defaultSelectedKeys));
+  }, [defaultSelectedKeys]);
+
+  const selectAllAiParams = useCallback(() => {
+    setSelectedAiParamKeys(new Set(AI_PARAM_CATALOG.map((p) => p.key)));
+  }, []);
+
+  const clearAllAiParams = useCallback(() => {
+    setSelectedAiParamKeys(new Set());
+  }, []);
+
   const paramCards = useMemo(() => {
     return [
       {
@@ -173,10 +380,75 @@ export default function CampaignDetails(props: Props) {
         aiSuggestion:
           "Verify primary conversions, tag status, and attribution model settings.",
       },
+
+      // NEW +8 (demo)
+      {
+        key: "impression_share",
+        title: "Impression share (lost to budget/rank)",
+        status: "warning" as const,
+        summary: "Impression Share indicates missed reach (demo).",
+        aiSuggestion:
+          "Check Lost IS (rank) vs (budget). If rank-driven: improve ads/QS; if budget-driven: raise budget or reallocate.",
+      },
+      {
+        key: "quality_score",
+        title: "Quality score signals",
+        status: "warning" as const,
+        summary: "Quality signals show room for improvement (demo).",
+        aiSuggestion:
+          "Improve ad relevance and landing page match for top spend keywords; add stronger RSAs aligned to intent.",
+      },
+      {
+        key: "policy_issues",
+        title: "Policy / disapprovals",
+        status: "critical" as const,
+        summary: "Potential disapprovals detected (demo).",
+        aiSuggestion:
+          "Review policy details, fix the flagged assets, and re-submit ads to restore delivery.",
+      },
+      {
+        key: "rsa_asset_coverage",
+        title: "RSA asset coverage & pinning risk",
+        status: "warning" as const,
+        summary: "RSA asset coverage looks thin (demo).",
+        aiSuggestion:
+          "Add more unique headlines/descriptions; avoid excessive pinning to improve learning and combinations.",
+      },
+      {
+        key: "device_performance",
+        title: "Device performance split",
+        status: "warning" as const,
+        summary: "Mobile performance differs from desktop (demo).",
+        aiSuggestion:
+          "If CPA is worse on a device: adjust bids (where applicable) or improve device-specific landing experience.",
+      },
+      {
+        key: "geo_outliers",
+        title: "Geo outliers (spend without results)",
+        status: "warning" as const,
+        summary: "Some locations spend without strong results (demo).",
+        aiSuggestion:
+          "Exclude low-performing locations or apply -10% to -30% adjustments where ROI is weak.",
+      },
+      {
+        key: "ad_schedule_hours",
+        title: "Ad schedule (hours/day) outliers",
+        status: "warning" as const,
+        summary: "High-cost hours detected (demo).",
+        aiSuggestion:
+          "Reduce exposure during expensive hours/days; shift budget to peak-converting windows.",
+      },
+      {
+        key: "landing_page_speed",
+        title: "Landing page speed / experience risk",
+        status: "warning" as const,
+        summary: "Landing page speed may hurt CVR (demo).",
+        aiSuggestion:
+          "Optimize LCP/CLS, compress images, reduce scripts; align above-the-fold CTA with ad intent.",
+      },
     ];
   }, []);
 
-  // 3) Read store consistently, then decide what to show after mount
   const store = getAgencyStore();
 
   const account =
@@ -225,13 +497,12 @@ export default function CampaignDetails(props: Props) {
           pct >= 80
             ? "Reduce bids or shift spend to later hours / tomorrow to avoid capping out too early."
             : pct >= 50
-            ? "Review ad schedule and limit high-cost hours."
-            : "Looks stable. Keep monitoring.",
+              ? "Review ad schedule and limit high-cost hours."
+              : "Looks stable. Keep monitoring.",
       };
     });
   }, [paramCards, spentPctReal]);
 
-  // 4) UI values: before mount show stable placeholders to avoid hydration mismatch
   const campaignTitle = mounted ? campaignTitleReal : "Campaign";
   const accountTitle = mounted ? accountTitleReal : accountId || "—";
   const health = mounted ? healthReal : ("warning" as Health);
@@ -246,6 +517,33 @@ export default function CampaignDetails(props: Props) {
     (props.mode === "admin"
       ? "Admin / Campaign details"
       : "Manager / Campaign details");
+
+  const aiCatalogFiltered = useMemo(() => {
+    const q = aiParamQuery.trim().toLowerCase();
+    if (!q) return AI_PARAM_CATALOG;
+    return AI_PARAM_CATALOG.filter((p) => {
+      return (
+        p.title.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.group.toLowerCase().includes(q)
+      );
+    });
+  }, [aiParamQuery]);
+
+  const aiCatalogByGroup = useMemo(() => {
+    const m = new Map<AiParamGroup, AiParamDef[]>();
+    for (const p of aiCatalogFiltered) {
+      const arr = m.get(p.group) ?? [];
+      arr.push(p);
+      m.set(p.group, arr);
+    }
+    return Array.from(m.entries());
+  }, [aiCatalogFiltered]);
+
+  const checksToRender = useMemo(() => {
+    const cards = mounted ? paramCardsWithBudget : paramCards;
+    return cards.filter((c) => selectedAiParamKeys.has(c.key));
+  }, [mounted, paramCardsWithBudget, paramCards, selectedAiParamKeys]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6">
@@ -267,7 +565,6 @@ export default function CampaignDetails(props: Props) {
             <div className="hidden sm:block">{props.topRightLabel}</div>
           ) : null}
 
-          {/* onBack takes priority */}
           {props.onBack ? (
             <button className={btn} type="button" onClick={props.onBack}>
               Back
@@ -290,7 +587,8 @@ export default function CampaignDetails(props: Props) {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="text-white/70">
-                Status: <span className="font-semibold text-white/90">Active</span>
+                Status:{" "}
+                <span className="font-semibold text-white/90">Active</span>
               </div>
               <div className="flex items-center gap-2 text-white/70">
                 Health: <HealthBadge h={health} />
@@ -335,32 +633,152 @@ export default function CampaignDetails(props: Props) {
         </div>
       </div>
 
-      {/* ======= CHECKS / PARAMETERS ======= */}
+      {/* ======= AI CONTROL PARAMETERS ======= */}
+      <div className="mt-10">
+        <div className="flex items-center justify-between gap-3">
+          <SectionHeader title="AI control parameters" />
+          <button
+            type="button"
+            className={btn}
+            onClick={() => setAiParamsOpen((v) => !v)}
+          >
+            {aiParamsOpen ? "Collapse" : "Expand"}
+          </button>
+        </div>
+
+        <div className="mt-2 text-sm text-white/60">
+          Default view shows only{" "}
+          <span className="text-white/80 font-semibold">Daily budget</span> +{" "}
+          <span className="text-white/80 font-semibold">
+            keyword ad situation
+          </span>
+          . You can enable any number of extra checks.
+        </div>
+
+        {aiParamsOpen ? (
+          <div className={card + " mt-4"}>
+            <div className="p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex-1">
+                  <div className="text-xs font-semibold text-white/60">
+                    Search parameters
+                  </div>
+                  <input
+                    value={aiParamQuery}
+                    onChange={(e) => setAiParamQuery(e.target.value)}
+                    placeholder="Search (e.g., bids, geo, tracking)"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/90 placeholder:text-white/30 outline-none focus:border-white/20"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" className={btn} onClick={selectRecommended}>
+                    Select recommended
+                  </button>
+                  <button type="button" className={btn} onClick={selectAllAiParams}>
+                    Select all
+                  </button>
+                  <button type="button" className={btn} onClick={clearAllAiParams}>
+                    Clear all
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 text-sm text-white/60">
+                Selected:{" "}
+                <span className="font-semibold text-white/90">
+                  {selectedAiParamKeys.size}
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                {aiCatalogByGroup.map(([group, items]) => (
+                  <div
+                    key={group}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="text-sm font-semibold text-white/85">
+                      {group}
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {items.map((p) => {
+                        const checked = selectedAiParamKeys.has(p.key);
+                        return (
+                          <label
+                            key={p.key}
+                            className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-black/20 p-3 hover:border-white/15"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 accent-white"
+                              checked={checked}
+                              onChange={() => toggleAiParam(p.key)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-white/90">
+                                {p.title}
+                              </span>
+                              <span className="mt-1 block text-xs text-white/55">
+                                {p.description}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {aiCatalogFiltered.length === 0 ? (
+                <div className="mt-4 text-sm text-white/50">
+                  No matches for “{aiParamQuery}”.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* ======= CHECKS ======= */}
       <div className="mt-10">
         <SectionHeader title="Checks" />
         <div className="mt-2 text-sm text-white/60">
-          8 daily checks. AI can prepare and apply recommendations after approval.
+          AI can prepare and apply recommendations after approval.
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {(mounted ? paramCardsWithBudget : paramCards).map((p) => {
-            const persistKey = `acc:${accountId}:cmp:${campaignId}:param:${p.key}`;
-            return (
-              <CampaignParamCard
-                key={persistKey}
-                persistKey={persistKey}
-                title={p.title}
-                status={p.status}
-                summary={p.summary}
-                aiSuggestion={p.aiSuggestion}
-                approved={!!approved[p.key]}
-                onApproveAi={() => setApproved((s) => ({ ...s, [p.key]: true }))}
-                googleAdsDisabled={true}
-                googleAdsUrl={undefined}
-              />
-            );
-          })}
-        </div>
+        {checksToRender.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+            No checks selected. Open{" "}
+            <span className="font-semibold text-white/85">
+              AI control parameters
+            </span>{" "}
+            and enable what you want to monitor.
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {checksToRender.map((p) => {
+              const persistKey = `acc:${accountId}:cmp:${campaignId}:param:${p.key}`;
+              return (
+                <CampaignParamCard
+                  key={persistKey}
+                  persistKey={persistKey}
+                  title={p.title}
+                  status={p.status}
+                  summary={p.summary}
+                  aiSuggestion={p.aiSuggestion}
+                  approved={!!approved[p.key]}
+                  onApproveAi={() =>
+                    setApproved((s) => ({ ...s, [p.key]: true }))
+                  }
+                  googleAdsDisabled={true}
+                  googleAdsUrl={undefined}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ======= KEYWORDS ======= */}
@@ -381,7 +799,9 @@ export default function CampaignDetails(props: Props) {
             <KeywordsTable rows={(campaign?.keywords ?? []) as any} />
           </div>
         ) : (
-          <div className="mt-3 text-sm text-white/50">Keywords table is collapsed.</div>
+          <div className="mt-3 text-sm text-white/50">
+            Keywords table is collapsed.
+          </div>
         )}
       </div>
 

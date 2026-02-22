@@ -1,26 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import {
-  useAdminStore,
-  adminSelectors,
-  adminActions,
-  ADMIN_OWNER_ID,
-  type Account,
-  type Manager,
-} from "@/app/(agency)/agency/administrator/_data/store";
+  useManagerStore,
+  managerSelectors,
+  type Campaign,
+} from "@/app/(agency)/agency/manager/_data/store";
 
 const card =
   "rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-sm overflow-hidden";
-const btn =
-  "rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/10 transition";
-const btnPrimary =
-  "rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90 transition";
 const input =
   "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/35";
-const select =
-  "w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none";
+const btn =
+  "rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/10 transition";
+const btnDisabled =
+  "rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/35 cursor-not-allowed opacity-70";
+const pillBase =
+  "inline-flex items-center justify-center rounded-full border px-2.5 py-1 text-xs font-semibold";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -37,174 +35,113 @@ function pctPillClass(pct: number) {
   return "border-red-400/30 bg-red-400/10 text-red-200";
 }
 
-function statusDotClass(health: "ok" | "warning" | "critical") {
-  if (health === "ok") return "bg-emerald-400/20 border-emerald-400/40";
-  if (health === "warning") return "bg-yellow-400/20 border-yellow-400/40";
-  return "bg-red-400/20 border-red-400/40";
+function healthDotClass(health: Campaign["health"]) {
+  if (health === "ok") return "bg-emerald-400/20 border-emerald-400/35";
+  if (health === "warning") return "bg-yellow-400/20 border-yellow-400/35";
+  return "bg-red-400/20 border-red-400/35";
 }
 
-function googleAdsAccountUrl(accountId: string) {
-  return `https://ads.google.com/aw/overview?account=${encodeURIComponent(accountId)}`;
-}
+type MeResponse =
+  | {
+      ok: true;
+      member: {
+        id: string;
+        role: "ADMIN" | "MANAGER";
+        displayName: string | null;
+        workspaceId: string;
+        workspaceName: string | null;
+      };
+      user: { id: string; email: string };
+    }
+  | { error: string; details?: unknown };
 
-function googleAdsCampaignUrl(accountId: string, campaignId: string) {
-  return `https://ads.google.com/aw/campaigns?account=${encodeURIComponent(
-    accountId
-  )}&campaignId=${encodeURIComponent(campaignId)}`;
-}
+export default function CampaignsClient() {
+  const s = useManagerStore();
 
-export default function Client() {
-  const s = useAdminStore();
-
-  const managers = useMemo(() => adminSelectors.managers(s), [s]);
-  const accounts = useMemo(() => adminSelectors.accounts(s) as Account[], [s]);
-
-  const ownerNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    map.set(ADMIN_OWNER_ID, "Administrator");
-    for (const m of managers) map.set(m.id, m.name);
-    return map;
-  }, [managers]);
-
+  const [me, setMe] = useState<MeResponse | null>(null);
   const [q, setQ] = useState("");
-  const [ownerFilter, setOwnerFilter] = useState<string>("all");
-  const [accountFilter, setAccountFilter] = useState<string>("all");
 
-  const allCampaigns = useMemo(() => adminSelectors.campaigns(s), [s]);
+  useEffect(() => {
+    let alive = true;
 
-  const filteredCampaigns = useMemo(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/agency/me", { cache: "no-store" });
+        const data = (await r.json()) as MeResponse;
+        if (!alive) return;
+        setMe(data);
+      } catch (e) {
+        if (!alive) return;
+        setMe({ error: "ME_FETCH_FAILED", details: String(e) });
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const managerMemberId = me && "ok" in me && me.ok ? me.member.id : null;
+
+  const all = useMemo(() => managerSelectors.campaigns(s), [s]);
+
+  const mine = useMemo(() => {
     const query = q.trim().toLowerCase();
+    if (!managerMemberId) return [];
 
-    return allCampaigns.filter((c: any) => {
-      const matchesQuery =
-        !query ||
-        String(c.name ?? "").toLowerCase().includes(query) ||
-        String(c.id ?? "").toLowerCase().includes(query);
+    return all
+      .filter((c: any) => c.ownerId === managerMemberId)
+      .filter((c: any) => {
+        if (!query) return true;
+        return (
+          String(c.name).toLowerCase().includes(query) ||
+          String(c.id).toLowerCase().includes(query)
+        );
+      });
+  }, [all, managerMemberId, q]);
 
-      const matchesOwner = ownerFilter === "all" ? true : c.ownerId === ownerFilter;
-      const matchesAccount = accountFilter === "all" ? true : c.accountId === accountFilter;
-
-      return matchesQuery && matchesOwner && matchesAccount;
-    });
-  }, [allCampaigns, q, ownerFilter, accountFilter]);
-
-  const accountHeader = useMemo(() => {
-    if (accountFilter === "all") return { name: "All accounts", id: "" };
-    const acc = accounts.find((a) => a.id === accountFilter) ?? null;
-    if (!acc) return { name: "Unknown account", id: accountFilter };
-    return { name: acc.name, id: acc.id };
-  }, [accounts, accountFilter]);
-
-  function managerProfileHref(ownerId: string) {
-    return `/agency/administrator/managers/${encodeURIComponent(ownerId)}`;
-  }
-
-  function budgetCell(c: any) {
-    const pct = budgetPct(Number(c.spentToday), Number(c.dailyBudget));
-    const pctText = `${pct.toFixed(0)}%`;
-
-    return (
-      <div className="flex items-center justify-end gap-2">
-        <span
-          className={
-            "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold " +
-            pctPillClass(pct)
-          }
-        >
-          {pctText}
-        </span>
-      </div>
-    );
-  }
+  const headerName =
+    me && "ok" in me && me.ok ? me.member.displayName || "Manager" : "Manager";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-2xl font-semibold text-white">Campaigns</div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85">
-              <span className="text-white/60">Account:</span>{" "}
-              <span className="font-semibold text-white">{accountHeader.name}</span>{" "}
-              {accountHeader.id ? (
-                <span className="ml-2 font-mono text-xs text-white/45">{accountHeader.id}</span>
-              ) : null}
-            </div>
-
-            <div className="min-w-[260px]">
-              <select
-                className={select}
-                value={accountFilter}
-                onChange={(e) => setAccountFilter(e.target.value)}
-              >
-                <option value="all">All accounts</option>
-                {accounts.map((a: Account) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.id})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <a
-              className={btn}
-              href={accountFilter === "all" ? undefined : googleAdsAccountUrl(accountFilter)}
-              target="_blank"
-              rel="noreferrer"
-              aria-disabled={accountFilter === "all"}
-              onClick={(e) => {
-                if (accountFilter === "all") e.preventDefault();
-              }}
-            >
-              View in Google Ads ↗
-            </a>
-
-            <Link className={btn} href={managerProfileHref(ADMIN_OWNER_ID)}>
-              Administrator profile (unassigned campaigns) →
-            </Link>
+          <div className="text-sm text-white/60">Campaigns</div>
+          <div className="mt-1 text-2xl font-semibold text-white">Campaigns</div>
+          <div className="mt-2 text-white/60">
+            You only see campaigns assigned to you.
+          </div>
+          <div className="mt-2 text-sm text-white/45">
+            Active: <span className="text-white/80">{headerName}</span>
           </div>
         </div>
       </div>
 
       <div className={card}>
         <div className="border-b border-white/10 p-5">
-          <div className="text-base font-semibold text-white">All campaigns</div>
+          <div className="text-base font-semibold text-white">Campaign list</div>
 
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
             <input
               className={input}
-              placeholder="Search campaigns by name or ID..."
+              placeholder="Search campaigns by name or ID…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
 
-            <select
-              className={select}
-              value={ownerFilter}
-              onChange={(e) => setOwnerFilter(e.target.value)}
-            >
-              <option value="all">All managers</option>
-              <option value={ADMIN_OWNER_ID}>Administrator</option>
-              {managers.map((m: Manager) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-
-            <div className="text-sm text-white/50 md:justify-self-end md:self-center">
-              Total: <span className="font-semibold text-white/80">{filteredCampaigns.length}</span>
+            <div className="md:col-span-2 text-sm text-white/50 md:justify-self-end md:self-center">
+              Total:{" "}
+              <span className="font-semibold text-white/80">{mine.length}</span>
             </div>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[980px] w-full text-left text-sm">
+          <table className="min-w-[900px] w-full text-left text-sm">
             <thead className="text-white/60">
               <tr className="border-b border-white/10">
                 <th className="px-5 py-3">Campaign</th>
-                <th className="px-5 py-3">Manager</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3 text-right">Budget</th>
                 <th className="px-5 py-3 text-right">Actions</th>
@@ -212,8 +149,17 @@ export default function Client() {
             </thead>
 
             <tbody className="text-white/85">
-              {filteredCampaigns.map((c: any) => {
-                const ownerName = ownerNameById.get(c.ownerId) ?? c.ownerId;
+              {mine.map((c: any) => {
+                const pct = budgetPct(Number(c.spentToday), Number(c.dailyBudget));
+                const pctText = `${pct.toFixed(0)}%`;
+
+                const accountId: string = c.accountId;
+                const detailsHref = `/agency/manager/accounts/${encodeURIComponent(
+                  accountId
+                )}/campaigns/${encodeURIComponent(c.id)}`;
+
+                const googleAdsHref: string | null =
+                  (c.googleAdsUrl as string | undefined) ?? null;
 
                 return (
                   <tr key={c.id} className="border-b border-white/5 last:border-b-0">
@@ -223,63 +169,59 @@ export default function Client() {
                     </td>
 
                     <td className="px-5 py-4">
-                      <Link
-                        href={managerProfileHref(c.ownerId)}
-                        className="font-semibold text-white underline decoration-white/20 underline-offset-4 hover:decoration-white/50"
-                      >
-                        {ownerName}
-                      </Link>
-                    </td>
-
-                    <td className="px-5 py-4">
                       <span
                         className={
-                          "inline-flex h-7 w-7 items-center justify-center rounded-full border " +
-                          statusDotClass(c.health)
+                          "inline-block h-6 w-6 rounded-full border " + healthDotClass(c.health)
                         }
                         title={c.health}
+                        aria-label={c.health}
                       />
                     </td>
 
-                    <td className="px-5 py-4 text-right">{budgetCell(c)}</td>
+                    <td className="px-5 py-4 text-right">
+                      <span className={pillBase + " " + pctPillClass(pct)}>{pctText}</span>
+                    </td>
 
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
-                        <Link
-                          className={btn}
-                          href={`/agency/administrator/accounts/${c.accountId}/campaigns/${c.id}`}
-                        >
-                          Details →
+                        <Link className={btn} href={detailsHref}>
+                          Open details →
                         </Link>
 
-                        <a
-                          className={btn}
-                          href={googleAdsCampaignUrl(c.accountId, c.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View in Google Ads ↗
-                        </a>
+                        {googleAdsHref ? (
+                          <a
+                            className={btn}
+                            href={googleAdsHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View in Google Ads ↗
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className={btnDisabled}
+                            disabled
+                            title="A Google Ads deep link will be available once the API is connected."
+                          >
+                            View in Google Ads ↗
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 );
               })}
 
-              {filteredCampaigns.length === 0 && (
+              {mine.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-10 text-white/60" colSpan={5}>
-                    No results found.
+                  <td className="px-5 py-10 text-white/60" colSpan={4}>
+                    No campaigns assigned to you.
                   </td>
                 </tr>
-              )}
+              ) : null}
             </tbody>
           </table>
-        </div>
-
-        <div className="px-5 py-3 text-xs text-white/45">
-          Unassigned campaigns are under the Administrator profile. “View as” is available in the
-          Manager section.
         </div>
       </div>
     </div>

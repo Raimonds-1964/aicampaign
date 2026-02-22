@@ -1,6 +1,7 @@
+// app/(pro)/pro/administrator/_ui/ReportModal.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type Preset = "yesterday" | "last7" | "last30" | "custom";
 type Format = "pdf" | "csv" | "xlsx";
@@ -18,14 +19,49 @@ function addDays(d: Date, days: number) {
   return x;
 }
 
+type FieldItem = { id: string; label: string; hint?: string };
+type FieldGroup = { title: string; items: FieldItem[] };
+
+function safeReadJson(key: string): unknown {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteJson(key: string, value: unknown) {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
+
+function normalizeSelected(v: unknown): Record<string, boolean> {
+  if (!v || typeof v !== "object") return {};
+  const obj = v as Record<string, unknown>;
+  const out: Record<string, boolean> = {};
+  for (const k of Object.keys(obj)) out[k] = obj[k] === true;
+  return out;
+}
+
 export default function ReportModal({
   open,
   onClose,
   campaignName,
+  accountId,
+  campaignId,
 }: {
   open: boolean;
   onClose: () => void;
   campaignName: string;
+  accountId: string;
+  campaignId: string;
 }) {
   const today = useMemo(() => new Date(), []);
   const [preset, setPreset] = useState<Preset>("last7");
@@ -35,34 +71,213 @@ export default function ReportModal({
 
   const [format, setFormat] = useState<Format>("pdf");
 
-  // grupas + apakšparametri (mock)
-  const groups = useMemo(
+  const groups: FieldGroup[] = useMemo(
     () => [
       {
-        title: "Kampaņas",
-        items: ["Budžets", "Statuss", "Redzamība", "Izdevumi", "Klikšķi"],
+        title: "Account",
+        items: [
+          { id: "account.name", label: "Account name" },
+          { id: "account.id", label: "Account ID" },
+          { id: "account.currency", label: "Currency" },
+          { id: "account.timezone", label: "Timezone" },
+        ],
       },
       {
-        title: "Atslēgvārdi",
-        items: ["TOP %", "1. lapa %", "CTR", "CPC", "Search terms"],
+        title: "Campaigns",
+        items: [
+          { id: "campaign.name", label: "Campaign name" },
+          { id: "campaign.id", label: "Campaign ID" },
+          { id: "campaign.status", label: "Status" },
+          { id: "campaign.type", label: "Campaign type" },
+          { id: "campaign.bidding_strategy", label: "Bidding strategy" },
+          { id: "campaign.daily_budget", label: "Daily budget" },
+          { id: "campaign.cost", label: "Cost (spend)" },
+          { id: "campaign.impressions", label: "Impressions" },
+          { id: "campaign.clicks", label: "Clicks" },
+          { id: "campaign.ctr", label: "CTR" },
+          { id: "campaign.avg_cpc", label: "Avg. CPC" },
+          { id: "campaign.conversions", label: "Conversions" },
+          { id: "campaign.conv_rate", label: "Conversion rate" },
+          { id: "campaign.cpa", label: "Cost / conv (CPA)" },
+          { id: "campaign.conv_value", label: "Conversion value" },
+          { id: "campaign.roas", label: "ROAS" },
+
+          { id: "campaign.search_impr_share", label: "Search impression share" },
+          { id: "campaign.search_lost_is_budget", label: "Lost IS (budget)" },
+          { id: "campaign.search_lost_is_rank", label: "Lost IS (rank)" },
+          { id: "campaign.top_impr_share", label: "Top impression share" },
+          { id: "campaign.abs_top_impr_share", label: "Absolute top impression share" },
+        ],
       },
       {
-        title: "Reklāmas",
-        items: ["RSA kvalitāte", "Assets", "CTR", "Konversijas"],
+        title: "Ad groups",
+        items: [
+          { id: "adgroup.name", label: "Ad group name" },
+          { id: "adgroup.id", label: "Ad group ID" },
+          { id: "adgroup.status", label: "Status" },
+          { id: "adgroup.cost", label: "Cost (spend)" },
+          { id: "adgroup.impressions", label: "Impressions" },
+          { id: "adgroup.clicks", label: "Clicks" },
+          { id: "adgroup.ctr", label: "CTR" },
+          { id: "adgroup.avg_cpc", label: "Avg. CPC" },
+          { id: "adgroup.conversions", label: "Conversions" },
+          { id: "adgroup.cpa", label: "Cost / conv (CPA)" },
+        ],
+      },
+      {
+        title: "Keywords",
+        items: [
+          { id: "keyword.text", label: "Keyword" },
+          { id: "keyword.match_type", label: "Match type" },
+          { id: "keyword.status", label: "Status" },
+          { id: "keyword.final_url", label: "Final URL" },
+
+          { id: "keyword.impressions", label: "Impressions" },
+          { id: "keyword.clicks", label: "Clicks" },
+          { id: "keyword.ctr", label: "CTR" },
+          { id: "keyword.avg_cpc", label: "Avg. CPC" },
+          { id: "keyword.cost", label: "Cost (spend)" },
+          { id: "keyword.conversions", label: "Conversions" },
+          { id: "keyword.cpa", label: "Cost / conv (CPA)" },
+          { id: "keyword.conv_rate", label: "Conversion rate" },
+          { id: "keyword.conv_value", label: "Conversion value" },
+
+          { id: "keyword.top_of_page_rate", label: "Top of page rate" },
+          { id: "keyword.abs_top_of_page_rate", label: "Absolute top of page rate" },
+          { id: "keyword.quality_score", label: "Quality score" },
+          { id: "keyword.expected_ctr", label: "Expected CTR (QS component)" },
+          { id: "keyword.ad_relevance", label: "Ad relevance (QS component)" },
+          { id: "keyword.landing_page_exp", label: "Landing page exp. (QS component)" },
+
+          { id: "keyword.search_impr_share", label: "Search impression share" },
+          { id: "keyword.search_lost_is_rank", label: "Lost IS (rank)" },
+          { id: "keyword.search_lost_is_budget", label: "Lost IS (budget)" },
+
+          { id: "keyword.search_terms", label: "Search terms", hint: "If enabled/available via API" },
+        ],
+      },
+      {
+        title: "Ads",
+        items: [
+          { id: "ad.type", label: "Ad type" },
+          { id: "ad.status", label: "Ad status" },
+          { id: "ad.ad_strength", label: "Ad strength (RSA)" },
+          { id: "ad.policy_status", label: "Policy status / disapprovals" },
+          { id: "ad.assets", label: "Assets" },
+
+          { id: "ad.impressions", label: "Impressions" },
+          { id: "ad.clicks", label: "Clicks" },
+          { id: "ad.ctr", label: "CTR" },
+          { id: "ad.avg_cpc", label: "Avg. CPC" },
+          { id: "ad.cost", label: "Cost (spend)" },
+          { id: "ad.conversions", label: "Conversions" },
+          { id: "ad.cpa", label: "Cost / conv (CPA)" },
+          { id: "ad.conv_value", label: "Conversion value" },
+        ],
+      },
+      {
+        title: "Segments",
+        items: [
+          { id: "segment.device", label: "Device" },
+          { id: "segment.network", label: "Network" },
+          { id: "segment.location", label: "Location" },
+          { id: "segment.day_of_week", label: "Day of week" },
+          { id: "segment.hour", label: "Hour of day" },
+        ],
       },
     ],
     []
   );
 
+  const validIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const g of groups) for (const it of g.items) s.add(it.id);
+    return s;
+  }, [groups]);
+
+  const persistKey = useMemo(() => {
+    const a = String(accountId || "unknown")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_-]/g, "");
+    const c = String(campaignId || "unknown")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_-]/g, "");
+    return `pro_report_fields__acc_${a}__cmp_${c}`;
+  }, [accountId, campaignId]);
+
+  // ✅ default: all false
   const [selected, setSelected] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
-    for (const g of groups) for (const it of g.items) init[`${g.title}:${it}`] = true;
+    for (const g of groups) for (const it of g.items) init[it.id] = false;
     return init;
   });
+
+  useEffect(() => {
+    if (!open) return;
+
+    const raw = safeReadJson(persistKey);
+    const saved = normalizeSelected(raw);
+
+    setSelected(() => {
+      const next: Record<string, boolean> = {};
+      for (const id of validIds) next[id] = false;
+      for (const k of Object.keys(saved)) if (validIds.has(k)) next[k] = saved[k] === true;
+      return next;
+    });
+  }, [open, persistKey, validIds]);
+
+  useEffect(() => {
+    if (!open) return;
+    safeWriteJson(persistKey, selected);
+  }, [open, persistKey, selected]);
+
+  const selectedCount = useMemo(
+    () => Object.keys(selected).filter((k) => selected[k]).length,
+    [selected]
+  );
+
+  function setAll(v: boolean) {
+    setSelected(() => {
+      const next: Record<string, boolean> = {};
+      for (const id of validIds) next[id] = v;
+      return next;
+    });
+  }
+
+  function selectRecommended() {
+    const recommended = new Set<string>([
+      "campaign.name",
+      "campaign.status",
+      "campaign.daily_budget",
+      "campaign.cost",
+      "campaign.impressions",
+      "campaign.clicks",
+      "campaign.ctr",
+      "campaign.avg_cpc",
+      "campaign.conversions",
+      "campaign.cpa",
+      "campaign.conv_value",
+      "campaign.roas",
+      "campaign.search_impr_share",
+      "campaign.search_lost_is_budget",
+      "campaign.search_lost_is_rank",
+    ]);
+
+    setSelected(() => {
+      const next: Record<string, boolean> = {};
+      for (const id of validIds) next[id] = recommended.has(id);
+      return next;
+    });
+  }
 
   function applyPreset(p: Preset) {
     setPreset(p);
     const t = new Date();
+
     if (p === "yesterday") {
       const y = addDays(t, -1);
       setFrom(iso(y));
@@ -79,11 +294,9 @@ export default function ReportModal({
       setTo(iso(t));
       return;
     }
-    // custom: atstāj esošos datumus
   }
 
   function onFromChange(v: string) {
-    // ja from > to, pabīdam to līdzi
     setFrom(v);
     if (v && to && v > to) setTo(v);
   }
@@ -94,10 +307,12 @@ export default function ReportModal({
   }
 
   function generate() {
-    const keys = Object.keys(selected).filter((k) => selected[k]);
-    // mock darbība prezentācijai:
+    const ids = Object.keys(selected).filter((k) => selected[k]);
+
     alert(
-      `Pārskats izveidots (mock)\n\nKampaņa: ${campaignName}\nPeriods: ${from} → ${to}\nFormāts: ${format}\nParametri: ${keys.length}`
+      `Report generated (mock)\n\nCampaign: ${campaignName}\nAccount: ${accountId}\nCampaign ID: ${campaignId}\nDate range: ${from} → ${to}\nFormat: ${format.toUpperCase()}\nFields: ${ids.length}\n\nField IDs:\n- ${ids.join(
+        "\n- "
+      )}`
     );
     onClose();
   }
@@ -106,32 +321,26 @@ export default function ReportModal({
 
   return (
     <div className="fixed inset-0 z-[60]">
-      <button
-        aria-label="Aizvērt"
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-      />
+      <button aria-label="Close" className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       <div
         className="absolute left-1/2 top-1/2 w-[min(920px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0f16] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <div className="text-base font-semibold text-white/90">
-            Izveidot pārskatu: {campaignName}
-          </div>
+          <div className="text-base font-semibold text-white/90">Create report: {campaignName}</div>
           <button
             onClick={onClose}
             className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
           >
-            Aizvērt
+            Close
           </button>
         </div>
 
         <div className="max-h-[70vh] overflow-auto p-4">
-          {/* Periods */}
+          {/* Date range */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="text-sm font-semibold text-white/90">Periods</div>
+            <div className="text-sm font-semibold text-white/90">Date range</div>
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -142,8 +351,9 @@ export default function ReportModal({
                     : "border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
                 }`}
               >
-                Vakar
+                Yesterday
               </button>
+
               <button
                 onClick={() => applyPreset("last7")}
                 className={`rounded-lg px-3 py-2 text-sm ${
@@ -152,8 +362,9 @@ export default function ReportModal({
                     : "border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
                 }`}
               >
-                Pēdējās 7 dienas
+                Last 7 days
               </button>
+
               <button
                 onClick={() => applyPreset("last30")}
                 className={`rounded-lg px-3 py-2 text-sm ${
@@ -162,8 +373,9 @@ export default function ReportModal({
                     : "border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
                 }`}
               >
-                Pēdējās 30 dienas
+                Last 30 days
               </button>
+
               <button
                 onClick={() => setPreset("custom")}
                 className={`rounded-lg px-3 py-2 text-sm ${
@@ -172,15 +384,14 @@ export default function ReportModal({
                     : "border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
                 }`}
               >
-                Savs periods
+                Custom range
               </button>
             </div>
 
-            {/* Savs periods: vienkāršs kalendārs ar 2 date inputiem */}
             {preset === "custom" && (
               <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <label className="text-sm text-white/80">
-                  No:
+                  From
                   <input
                     type="date"
                     value={from}
@@ -188,8 +399,9 @@ export default function ReportModal({
                     className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white/90"
                   />
                 </label>
+
                 <label className="text-sm text-white/80">
-                  Līdz:
+                  To
                   <input
                     type="date"
                     value={to}
@@ -201,10 +413,40 @@ export default function ReportModal({
             )}
           </div>
 
-          {/* Parametri */}
+          {/* Fields */}
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="text-sm font-semibold text-white/90">
-              Parametri (atzīmē vajadzīgos)
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-white/90">Fields (select what to include)</div>
+                <div className="mt-1 text-sm text-white/60">
+                  Selected: <span className="font-semibold text-white/90">{selectedCount}</span>
+                  <span className="ml-2 text-xs text-white/40">(Saved automatically for this campaign)</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={selectRecommended}
+                  className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                >
+                  Select recommended
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAll(true)}
+                  className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAll(false)}
+                  className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                >
+                  Clear all
+                </button>
+              </div>
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -213,18 +455,21 @@ export default function ReportModal({
                   <div className="text-sm font-semibold text-white/90">{g.title}</div>
                   <div className="mt-2 space-y-2">
                     {g.items.map((it) => {
-                      const k = `${g.title}:${it}`;
+                      const checked = !!selected[it.id];
                       return (
-                        <label key={k} className="flex items-center gap-2 text-sm text-white/80">
+                        <label key={it.id} className="flex items-start gap-2 text-sm text-white/80" title={it.id}>
                           <input
                             type="checkbox"
-                            checked={!!selected[k]}
-                            onChange={(e) =>
-                              setSelected((s) => ({ ...s, [k]: e.target.checked }))
-                            }
-                            className="h-4 w-4"
+                            checked={checked}
+                            onChange={(e) => setSelected((s) => ({ ...s, [it.id]: e.target.checked }))}
+                            className="mt-0.5 h-4 w-4"
                           />
-                          {it}
+                          <span className="min-w-0">
+                            <span className="block">{it.label}</span>
+                            {it.hint ? (
+                              <span className="mt-0.5 block text-xs text-white/45">{it.hint}</span>
+                            ) : null}
+                          </span>
                         </label>
                       );
                     })}
@@ -234,9 +479,9 @@ export default function ReportModal({
             </div>
           </div>
 
-          {/* Formāts */}
+          {/* Format */}
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="text-sm font-semibold text-white/90">Formāts</div>
+            <div className="text-sm font-semibold text-white/90">Format</div>
             <div className="mt-3 flex flex-wrap gap-2">
               {(["pdf", "csv", "xlsx"] as Format[]).map((f) => (
                 <button
@@ -260,13 +505,14 @@ export default function ReportModal({
             onClick={onClose}
             className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
           >
-            Atcelt
+            Cancel
           </button>
+
           <button
             onClick={generate}
             className="rounded-lg bg-white/90 px-3 py-2 text-sm text-black hover:opacity-90"
           >
-            Gatavs
+            Generate
           </button>
         </div>
       </div>

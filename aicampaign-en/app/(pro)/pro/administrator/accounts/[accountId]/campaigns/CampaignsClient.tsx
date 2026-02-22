@@ -1,12 +1,9 @@
+// app/(pro)/pro/administrator/accounts/[accountId]/campaigns/Client.tsx
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import {
-  useAdminStore,
-  adminSelectors,
-  type Campaign,
-} from "../../../_data/store";
+import { useEffect, useMemo } from "react";
+import { useAdminStore, adminSelectors, type Campaign } from "../../../_data/store";
 
 const card =
   "rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-sm overflow-hidden";
@@ -52,6 +49,15 @@ function campaignGoogleAdsUrl(accountId: string, campaignId: string) {
 
 export default function CampaignsClient({ accountId }: { accountId: string }) {
   const s = useAdminStore();
+
+  // ✅ remember last visited account for TopBar "Campaigns"
+  useEffect(() => {
+    try {
+      localStorage.setItem("pro_last_account_id", String(accountId));
+    } catch {
+      // ignore
+    }
+  }, [accountId]);
 
   const account = adminSelectors.accountById(s, accountId);
   const campaigns = adminSelectors.campaignsByAccountId(s, accountId);

@@ -9,5 +9,7 @@ export default function Client({
   accountId: string;
   campaignId: string;
 }) {
-  return <CampaignDetails mode="admin" accountId={accountId} campaignId={campaignId} />;
+  return (
+    <CampaignDetails mode="admin" accountId={accountId} campaignId={campaignId} />
+  );
 }

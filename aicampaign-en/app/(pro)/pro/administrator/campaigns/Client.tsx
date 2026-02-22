@@ -1,7 +1,8 @@
+// app/(pro)/pro/administrator/campaigns/Client.tsx
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAdminStore,
   adminSelectors,
@@ -48,7 +49,6 @@ function googleAdsAccountUrl(accountId: string) {
 }
 
 function googleAdsCampaignUrl(accountId: string, campaignId: string) {
-  // Demo: real deep links will be used once API integration is in place.
   return `https://ads.google.com/aw/campaigns?account=${encodeURIComponent(
     accountId
   )}&campaignId=${encodeURIComponent(campaignId)}`;
@@ -71,6 +71,32 @@ export default function Client() {
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [accountFilter, setAccountFilter] = useState<string>("all");
 
+  // ✅ Load last selected account into the filter (if exists)
+  useEffect(() => {
+    try {
+      const last = localStorage.getItem("pro_last_account_id");
+      if (!last) return;
+
+      // only set if it exists in current accounts list
+      if (accounts.some((a) => String(a.id) === String(last))) {
+        setAccountFilter(String(last));
+      }
+    } catch {
+      // ignore
+    }
+    // only when accounts list is ready
+  }, [accounts]);
+
+  // ✅ Persist when user selects a specific account
+  useEffect(() => {
+    if (accountFilter === "all") return;
+    try {
+      localStorage.setItem("pro_last_account_id", String(accountFilter));
+    } catch {
+      // ignore
+    }
+  }, [accountFilter]);
+
   const allCampaigns = useMemo(() => adminSelectors.campaigns(s) as any[], [s]);
 
   const filteredCampaigns = useMemo(() => {
@@ -83,8 +109,7 @@ export default function Client() {
         String(c.id ?? "").toLowerCase().includes(query);
 
       const matchesOwner = ownerFilter === "all" ? true : c.ownerId === ownerFilter;
-      const matchesAccount =
-        accountFilter === "all" ? true : c.accountId === accountFilter;
+      const matchesAccount = accountFilter === "all" ? true : c.accountId === accountFilter;
 
       return matchesQuery && matchesOwner && matchesAccount;
     });
@@ -117,12 +142,8 @@ export default function Client() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="text-2xl font-semibold text-white/90">Campaigns</div>
-          <div className="mt-2 text-white/60"></div>
 
-          {/* ===== Account filter (header) ===== */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {/* Removed: "Account: ..." chip. The account filter (select) remains. */}
-
             <div className="min-w-[260px]">
               <select
                 className={select}
@@ -153,11 +174,9 @@ export default function Client() {
           </div>
         </div>
 
-        {/* ===== Actions (no "View as" and no account creation) ===== */}
         <div className="flex flex-wrap items-center gap-2"></div>
       </div>
 
-      {/* ===================== All campaigns (filters) ===================== */}
       <div className={card}>
         <div className="border-b border-white/10 p-5">
           <div className="text-base font-semibold text-white/90">All campaigns</div>
@@ -194,7 +213,7 @@ export default function Client() {
               {filteredCampaigns.map((c: any) => {
                 const ownerName = ownerNameById.get(c.ownerId) ?? c.ownerId;
 
-                // Kept for potential future use (e.g., owner column or tooltip)
+                // kept for future use (e.g., owner column)
                 const managerCell = (
                   <Link
                     href={managerProfileHref(c.ownerId)}
@@ -212,7 +231,6 @@ export default function Client() {
                     </td>
 
                     <td className="px-5 py-4">
-                      {/* Color-only status indicator (derived from details) */}
                       <span
                         className={
                           "inline-flex h-7 w-7 items-center justify-center rounded-full border " +

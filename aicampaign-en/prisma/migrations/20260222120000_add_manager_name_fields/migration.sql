@@ -1,0 +1,1 @@
+-- restored empty migration file

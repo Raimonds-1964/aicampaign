@@ -1,3 +1,4 @@
+// app/(pro)/pro/shared/ui/CampaignParamCard.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -5,10 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 export type Status = "ok" | "warning" | "critical";
 
 function pill(status: Status) {
-  if (status === "critical")
-    return "bg-red-500/15 text-red-200 border-red-500/30";
-  if (status === "warning")
-    return "bg-yellow-500/15 text-yellow-200 border-yellow-500/30";
+  if (status === "critical") return "bg-red-500/15 text-red-200 border-red-500/30";
+  if (status === "warning") return "bg-yellow-500/15 text-yellow-200 border-yellow-500/30";
   return "bg-emerald-500/15 text-emerald-200 border-emerald-500/30";
 }
 
@@ -35,8 +34,7 @@ function riskBadge(risk?: AiChange["risk"]) {
       ? "border-yellow-500/30 bg-yellow-500/15 text-yellow-200"
       : "border-emerald-500/30 bg-emerald-500/15 text-emerald-200";
 
-  const text =
-    risk === "high" ? "High risk" : risk === "medium" ? "Medium risk" : "Low risk";
+  const text = risk === "high" ? "High risk" : risk === "medium" ? "Medium risk" : "Low risk";
 
   return (
     <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${cls}`}>
@@ -85,7 +83,6 @@ function normalizePersistKey(persistKey: string) {
   return k;
 }
 
-/** PRO namespace — never collide with Agency */
 function makeStorageKey(persistKey: string) {
   const normalized = normalizePersistKey(persistKey);
   const safe = (normalized || "unknown")
@@ -111,10 +108,9 @@ export default function CampaignParamCard(props: {
   title: string;
   status: Status;
   summary: string;
-  /** Kept in props (can be shown in the modal as “AI rationale”) */
   aiSuggestion: string;
 
-  /** unique per account + campaign + parameter */
+  /** unique per account+campaign+param */
   persistKey: string;
 
   approved?: boolean;
@@ -146,13 +142,11 @@ export default function CampaignParamCard(props: {
   const [modalOpen, setModalOpen] = useState(false);
   const bcRef = useRef<BroadcastChannel | null>(null);
 
-  // init from localStorage
   useEffect(() => {
     setAiEnabled(readEnabled(storageKey, defaultAiEnabled));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
-  // sync across tabs/windows (PRO namespace)
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.storageArea !== localStorage) return;
@@ -166,9 +160,7 @@ export default function CampaignParamCard(props: {
       bc = new BroadcastChannel("pro_ai_toggle");
       bcRef.current = bc;
       bc.onmessage = (ev) => {
-        const data = ev?.data as
-          | { storageKey?: string; value?: "1" | "0" }
-          | undefined;
+        const data = ev?.data as { storageKey?: string; value?: "1" | "0" } | undefined;
         if (!data?.storageKey || data.storageKey !== storageKey) return;
         if (data.value === "1") setAiEnabled(true);
         if (data.value === "0") setAiEnabled(false);
@@ -209,16 +201,13 @@ export default function CampaignParamCard(props: {
     } catch {}
 
     try {
-      window.dispatchEvent(
-        new CustomEvent("pro:ai-toggle", { detail: { storageKey, value } })
-      );
+      window.dispatchEvent(new CustomEvent("pro:ai-toggle", { detail: { storageKey, value } }));
     } catch {}
-
-    if (!v) setModalOpen(false);
   }
 
   const changes: AiChange[] = useMemo(() => {
     if (aiChanges && aiChanges.length) return aiChanges;
+
     return [
       {
         id: "chg-1",
@@ -228,14 +217,14 @@ export default function CampaignParamCard(props: {
       },
       {
         id: "chg-2",
-        title: "Change keyword match type",
-        details: 'Phrase → Exact (keyword: "google ads")',
+        title: "Tighten match type",
+        details: 'Phrase → Exact (keyword: "google ads agency")',
         risk: "high",
       },
       {
         id: "chg-3",
-        title: "Refresh an RSA asset (headline)",
-        details: 'Headline #2 → "Free audit in 24 hours"',
+        title: "Refresh an RSA headline asset",
+        details: 'Headline #2 → "Free account audit in 24 hours"',
         risk: "low",
       },
     ];
@@ -251,14 +240,14 @@ export default function CampaignParamCard(props: {
     setSelected((prev) => {
       const next = { ...prev };
       for (const c of changes) if (next[c.id] === undefined) next[c.id] = true;
-      for (const k of Object.keys(next))
-        if (!changes.some((c) => c.id === k)) delete next[k];
+      for (const k of Object.keys(next)) if (!changes.some((c) => c.id === k)) delete next[k];
       return next;
     });
   }, [changes]);
 
   function openAiOffer() {
     if (!aiEnabled) return;
+    if (approved) return;
     setModalOpen(true);
   }
 
@@ -268,79 +257,90 @@ export default function CampaignParamCard(props: {
     setModalOpen(false);
   }
 
+  const openDisabled = !!googleAdsDisabled || !googleAdsUrl;
+  const reviewDisabled = !!approved;
+
   return (
     <>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        {/* Unified layout: action buttons are always at the bottom */}
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-base font-semibold text-white/90">{title}</div>
+        <div className="flex flex-col gap-4">
+          {/* ✅ stable header layout (no weird wrapping differences) */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-base font-semibold text-white/90">{title}</div>
 
-            {!aiEnabled ? (
-              <span className="inline-flex rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs text-white/70">
-                AI off
-              </span>
-            ) : (
-              <span
-                className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${pill(
-                  status
-                )}`}
-              >
-                {statusLabel(status)}
-              </span>
-            )}
+                {!aiEnabled ? (
+                  <span className="inline-flex rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs text-white/70">
+                    AI off
+                  </span>
+                ) : (
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${pill(status)}`}>
+                    {statusLabel(status)}
+                  </span>
+                )}
 
-            {approved ? (
-              <span className="inline-flex rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs text-white/70">
-                Changes approved
-              </span>
-            ) : null}
+                {approved ? (
+                  <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-200">
+                    Approved ✓
+                  </span>
+                ) : null}
+              </div>
 
-            <Toggle
-              checked={aiEnabled}
-              onChange={setAiEnabledPersist}
-              label={aiEnabled ? "AI: On" : "AI: Off"}
-            />
+              {aiEnabled ? (
+                <>
+                  <div className="mt-1 text-sm text-white/70">{summary}</div>
+
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-xs font-semibold text-white/60">AI recommendation</div>
+                    <div className="mt-1 text-sm text-white/80">{aiSuggestion}</div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="shrink-0">
+              <Toggle
+                checked={aiEnabled}
+                onChange={setAiEnabledPersist}
+                label={aiEnabled ? "AI: On" : "AI: Off"}
+              />
+            </div>
           </div>
 
-          {/* Requirement: if AI is off, show nothing below the header */}
           {aiEnabled ? (
-            <>
-              <div className="mt-2 text-sm text-white/70">{summary}</div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <a
+                href={googleAdsUrl || "#"}
+                target={openDisabled ? undefined : "_blank"}
+                rel={openDisabled ? undefined : "noreferrer"}
+                onClick={(e) => {
+                  if (openDisabled) e.preventDefault();
+                }}
+                className={`rounded-lg border border-white/15 px-3 py-2 text-center text-sm ${
+                  openDisabled
+                    ? "cursor-not-allowed bg-white/5 text-white/40"
+                    : "bg-white/5 text-white/85 hover:bg-white/10"
+                }`}
+                title={openDisabled ? "Demo mode: link disabled until API is connected" : "Open in Google Ads"}
+              >
+                Open in Google Ads ↗
+              </a>
 
-              {/* CTA buttons at the bottom (consistent across parameters) */}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <a
-                  href={googleAdsUrl || "#"}
-                  target={googleAdsDisabled ? undefined : "_blank"}
-                  rel={googleAdsDisabled ? undefined : "noreferrer"}
-                  onClick={(e) => {
-                    if (googleAdsDisabled || !googleAdsUrl) e.preventDefault();
-                  }}
-                  className={`rounded-lg border border-white/15 px-3 py-2 text-sm ${
-                    googleAdsDisabled || !googleAdsUrl
-                      ? "cursor-not-allowed bg-white/5 text-white/40"
-                      : "bg-white/5 text-white/85 hover:bg-white/10"
-                  }`}
-                  title={
-                    googleAdsDisabled
-                      ? "Demo mode: link disabled without API"
-                      : "Open in Google Ads"
-                  }
-                >
-                  Open in Google Ads ↗
-                </a>
-
-                <button
-                  type="button"
-                  onClick={openAiOffer}
-                  className="rounded-lg bg-white/90 px-3 py-2 text-sm text-black hover:opacity-90"
-                  title="View AI recommendations"
-                >
-                  AI recommendations
-                </button>
-              </div>
-            </>
+              <button
+                type="button"
+                onClick={openAiOffer}
+                disabled={reviewDisabled}
+                className={`rounded-lg px-3 py-2 text-sm ${
+                  reviewDisabled
+                    ? "cursor-not-allowed bg-white/10 text-white/50"
+                    : "bg-white/90 text-black hover:opacity-90"
+                }`}
+                title={reviewDisabled ? "Changes already approved" : "Review proposed changes"}
+              >
+                Review AI changes
+              </button>
+            </div>
           ) : null}
         </div>
       </div>
@@ -348,7 +348,6 @@ export default function CampaignParamCard(props: {
       {modalOpen ? (
         <div className="fixed inset-0 z-[80]">
           <button
-            type="button"
             className="absolute inset-0 bg-black/70"
             aria-label="Close"
             onClick={() => setModalOpen(false)}
@@ -360,9 +359,7 @@ export default function CampaignParamCard(props: {
           >
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <div>
-                <div className="text-base font-semibold text-white">
-                  AI recommendations
-                </div>
+                <div className="text-base font-semibold text-white">AI recommendations</div>
                 <div className="text-sm text-white/60">{title}</div>
               </div>
 
@@ -376,27 +373,9 @@ export default function CampaignParamCard(props: {
             </div>
 
             <div className="max-h-[70vh] overflow-auto p-4">
-              <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-sm font-semibold text-white/90">
-                  Context
-                </div>
-                <div className="mt-2 text-sm text-white/70">{summary}</div>
-
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3">
-                  <div className="text-xs font-semibold text-white/60">
-                    AI rationale
-                  </div>
-                  <div className="mt-1 text-sm text-white/80">{aiSuggestion}</div>
-                </div>
-              </div>
-
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-sm font-semibold text-white/90">
-                  Suggested changes
-                </div>
-                <div className="mt-2 text-sm text-white/60">
-                  Select what to apply. AI can only make changes you approve.
-                </div>
+                <div className="text-sm font-semibold text-white/90">Proposed changes</div>
+                <div className="mt-2 text-sm text-white/60">Select what to apply. (Demo)</div>
 
                 <div className="mt-4 space-y-3">
                   {changes.map((c) => (
@@ -408,26 +387,18 @@ export default function CampaignParamCard(props: {
                         type="checkbox"
                         checked={!!selected[c.id]}
                         onChange={(e) =>
-                          setSelected((s) => ({
-                            ...s,
-                            [c.id]: e.target.checked,
-                          }))
+                          setSelected((s) => ({ ...s, [c.id]: e.target.checked }))
                         }
                         className="mt-1 h-4 w-4"
                       />
 
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="font-semibold text-white/90">
-                            {c.title}
-                          </div>
+                          <div className="font-semibold text-white/90">{c.title}</div>
                           {riskBadge(c.risk)}
                         </div>
-
                         {c.details ? (
-                          <div className="mt-1 text-sm text-white/65">
-                            {c.details}
-                          </div>
+                          <div className="mt-1 text-sm text-white/65">{c.details}</div>
                         ) : null}
                       </div>
                     </label>
@@ -442,15 +413,15 @@ export default function CampaignParamCard(props: {
                 onClick={() => setModalOpen(false)}
                 className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
               >
-                Dismiss
+                Cancel
               </button>
 
               <button
                 type="button"
                 onClick={approveSelected}
-                className="rounded-lg bg-white/90 px-3 py-2 text-sm text-black hover:opacity-90"
+                className="rounded-lg bg-white px-3 py-2 text-sm text-black hover:opacity-90"
               >
-                Approve
+                Approve changes
               </button>
             </div>
           </div>

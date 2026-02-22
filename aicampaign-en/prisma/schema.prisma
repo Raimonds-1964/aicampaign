@@ -3,8 +3,109 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  stripeCustomerId String?          @unique
+  plan             PlanKey          @default(easy)
+
+  acceptedInvites  AgencyInvite[]   @relation("InviteAcceptedByUser")
+  agencyMembers    AgencyMember[]
+  ownedAgency      AgencyWorkspace?
+  subscriptions    Subscription[]
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String
+  stripeSubscriptionId String    @unique
+  stripePriceId        String
+  status               String
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AgencyWorkspace {
+  id        String         @id @default(cuid())
+  ownerId   String         @unique
+  name      String         @default("My Agency")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  invites   AgencyInvite[]
+  members   AgencyMember[]
+
+  // ✅ OPPOSITE relation field (vajadzīgs AgencyCampaignOwner.workspace)
+  campaignOwners AgencyCampaignOwner[]
+
+  owner     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model AgencyMember {
+  id          String          @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        AgencyRole      @default(MANAGER)
+  createdAt   DateTime        @default(now())
+  displayName String?
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   AgencyWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // ✅ OPPOSITE relation field (vajadzīgs AgencyCampaignOwner.ownerMember)
+  ownedCampaigns AgencyCampaignOwner[] @relation("AgencyCampaignOwner_ownerMember")
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model AgencyInvite {
+  id               String          @id @default(cuid())
+  workspaceId      String
+  email            String
+  role             AgencyRole      @default(MANAGER)
+  tokenHash        String          @unique
+  expiresAt        DateTime
+  usedAt           DateTime?
+  acceptedByUserId String?
+  createdAt        DateTime        @default(now())
+  managerName      String?
+
+  acceptedByUser   User?           @relation("InviteAcceptedByUser", fields: [acceptedByUserId], references: [id])
+  workspace        AgencyWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([workspaceId])
+}
+
+model AgencyCampaignOwner {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  accountId     String
+  campaignId    String
+  ownerMemberId String?
+
+  workspace     AgencyWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // ✅ piešķiram explicit relation name, lai Prisma ir stabils
+  ownerMember   AgencyMember?   @relation("AgencyCampaignOwner_ownerMember", fields: [ownerMemberId], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([workspaceId, campaignId])
+  @@index([workspaceId, ownerMemberId])
 }
 
 enum PlanKey {
@@ -14,29 +115,7 @@ enum PlanKey {
   agency
 }
 
-model User {
-  id                 String        @id @default(cuid())
-  email              String        @unique
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-
-  // Stripe
-  stripeCustomerId   String?       @unique
-  plan               PlanKey       @default(easy)
-
-  subscriptions      Subscription[]
-}
-
-model Subscription {
-  id                    String   @id @default(cuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  stripeSubscriptionId  String   @unique
-  stripePriceId         String
-  status                String
-  currentPeriodEnd      DateTime?
-
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+enum AgencyRole {
+  ADMIN
+  MANAGER
 }

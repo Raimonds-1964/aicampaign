@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   useAdminStore,
   adminSelectors,
@@ -15,6 +15,8 @@ const card =
   "rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-sm overflow-hidden";
 const btn =
   "rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/10 transition";
+const btnDanger =
+  "rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm font-semibold text-red-200 hover:bg-red-400/15 transition";
 const btnDisabled =
   "rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/35 cursor-not-allowed opacity-70";
 const select =
@@ -68,9 +70,9 @@ export default function Client() {
   const params = useParams<{ managerId: string }>();
   const managerId = params?.managerId || "";
 
+  const router = useRouter();
   const s = useAdminStore();
 
-  // ✅ FIX: managers is typed so the map() param isn't any
   const managers = useMemo(() => adminSelectors.managers(s) as Manager[], [s]);
 
   const isAdminProfile = managerId === ADMIN_OWNER_ID;
@@ -85,6 +87,44 @@ export default function Client() {
   }, [s, managerId]);
 
   const freeCampaigns = useMemo(() => adminSelectors.freeCampaigns(s), [s]);
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function deleteManager() {
+    if (isAdminProfile) return;
+
+    const ok = window.confirm(
+      "Dzēst šo manageri?\n\nTiks dzēsts manager profils un noņemtas visas viņa piesaistes."
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch(`/api/agency/admin/members/${encodeURIComponent(managerId)}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setDeleteError(data?.error ?? "DELETE_FAILED");
+        return;
+      }
+
+      // refresh managers list
+      await (adminActions as any)?.refreshManagers?.();
+
+      router.push("/agency/administrator/managers");
+      router.refresh();
+    } catch {
+      setDeleteError("NETWORK_ERROR");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6">
@@ -108,10 +148,30 @@ export default function Client() {
           </div>
         </div>
 
-        <Link className={btn} href="/agency/administrator/managers">
-          Back
-        </Link>
+        <div className="flex gap-2">
+          <Link className={btn} href="/agency/administrator/managers">
+            Back
+          </Link>
+
+          {!isAdminProfile ? (
+            <button
+              className={btnDanger}
+              type="button"
+              disabled={deleting}
+              onClick={deleteManager}
+              title="Delete manager"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {deleteError ? (
+        <div className="mb-6 rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">
+          Error: <span className="font-mono">{deleteError}</span>
+        </div>
+      ) : null}
 
       {/* ==================== Assigned campaigns ==================== */}
       <div className={card}>
@@ -148,12 +208,10 @@ export default function Client() {
                       <div className="mt-1 font-mono text-xs text-white/45">{c.id}</div>
                     </td>
 
-                    {/* ✅ icon only */}
                     <td className="px-5 py-4">
                       <StatusDot health={c.health} />
                     </td>
 
-                    {/* ✅ percent only */}
                     <td className="px-5 py-4 text-right">
                       <BudgetPill spentToday={c.spentToday} dailyBudget={c.dailyBudget} />
                     </td>
@@ -265,7 +323,6 @@ export default function Client() {
                           </div>
                         </td>
 
-                        {/* ✅ percent only */}
                         <td className="px-5 py-4 text-right">
                           <BudgetPill spentToday={c.spentToday} dailyBudget={c.dailyBudget} />
                         </td>

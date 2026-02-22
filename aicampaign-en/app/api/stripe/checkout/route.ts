@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { stripe } from "@/lib/stripe/stripe";
 import { plans, type PlanKey } from "@/lib/stripe/plans";
 
@@ -14,72 +16,96 @@ function getAppUrl(reqUrl: string) {
 }
 
 function isPlanKey(v: string | null): v is PlanKey {
-  return Boolean(v && v in plans);
+  return !!v && v in plans;
 }
 
-async function createCheckout(planKey: PlanKey, reqUrl: string) {
+async function createCheckout(planKey: PlanKey, reqUrl: string, userEmail: string) {
   const plan = plans[planKey];
   const appUrl = getAppUrl(reqUrl);
 
-  // Metadata is used by Stripe webhooks to identify the purchased plan
   const session = await stripe.checkout.sessions.create({
     mode: plan.mode,
     line_items: [{ price: plan.priceId, quantity: 1 }],
-    success_url: `${appUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${appUrl}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/pricing`,
     allow_promotion_codes: true,
     billing_address_collection: "auto",
+
+    ...(plan.mode === "payment" ? { customer_creation: "always" as const } : {}),
+
+    customer_email: userEmail,
+
     metadata: {
-      planKey: plan.key,
-      userPlan: plan.userPlan,
+      planKey: plan.key,     // piemēram: agency_monthly
+      userPlan: plan.userPlan, // piemēram: agency
+      userEmail,
     },
   });
 
-  if (!session.url) {
-    throw new Error("Stripe checkout session URL is missing.");
-  }
-
+  if (!session.url) throw new Error("Stripe session.url is missing");
   return session.url;
 }
 
-// GET: /api/stripe/checkout?planKey=easy
+// GET: /api/stripe/checkout?planKey=easy|basic_monthly|...|agency_yearly
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const planKey = searchParams.get("planKey");
+    const requestedPlanKey = searchParams.get("planKey");
 
-    if (!isPlanKey(planKey)) {
+    // Ja nav derīgs planKey, uz pricing
+    if (!isPlanKey(requestedPlanKey)) {
       return NextResponse.redirect(new URL("/pricing", req.url));
     }
 
-    const url = await createCheckout(planKey, req.url);
+    const auth = await getServerSession(authOptions);
+    const email = auth?.user?.email;
+
+    // ✅ FIX: ja nav ielogojies, pēc login atgriezies uz to pašu checkout URL
+    if (!email) {
+      const appUrl = getAppUrl(req.url);
+      const callbackUrl = `${appUrl}/api/stripe/checkout?planKey=${encodeURIComponent(
+        requestedPlanKey
+      )}`;
+
+      return NextResponse.redirect(
+        new URL(
+          `/api/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`,
+          req.url
+        )
+      );
+    }
+
+    const url = await createCheckout(requestedPlanKey, req.url, email);
     return NextResponse.redirect(url, 303);
   } catch (e: any) {
-    // Important: return a meaningful error for logs instead of a generic 500
-    const message = e?.message || "Stripe checkout error.";
-    const status = message.startsWith("Missing env ") ? 400 : 500;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    const msg = e?.message || "Checkout error";
+    const status = msg.startsWith("Missing env ") ? 400 : 500;
+    return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }
 
-// POST: accepts JSON body { planKey: "easy" }
+// POST: frontend sends JSON { planKey: "agency_monthly" }
 export async function POST(req: Request) {
   try {
+    const auth = await getServerSession(authOptions);
+    const email = auth?.user?.email;
+
+    if (!email) {
+      return NextResponse.json({ ok: false, error: "NOT_AUTHENTICATED" }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const planKey = (body?.planKey as string | undefined) ?? null;
 
     if (!isPlanKey(planKey)) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid planKey." },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "Invalid planKey" }, { status: 400 });
     }
 
-    const url = await createCheckout(planKey, req.url);
+    const url = await createCheckout(planKey, req.url, email);
     return NextResponse.json({ ok: true, url });
   } catch (e: any) {
-    const message = e?.message || "Stripe checkout error.";
-    const status = message.startsWith("Missing env ") ? 400 : 500;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    const msg = e?.message || "Checkout error";
+    const status = msg.startsWith("Missing env ") ? 400 : 500;
+    return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

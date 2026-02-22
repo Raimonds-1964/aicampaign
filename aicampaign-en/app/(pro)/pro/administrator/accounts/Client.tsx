@@ -47,7 +47,7 @@ export default function Client() {
           {/* ✅ EN/US pricing note */}
           <div className="mt-3 max-w-xl text-sm font-semibold text-white/60">
             Your plan includes <b className="text-white/80">1 Google Ads account</b>. Additional accounts can be added for{" "}
-            <b className="text-white/80">$99/month per account</b>.
+            <b className="text-white/80">$99 /mo per account</b>.
           </div>
         </div>
 
