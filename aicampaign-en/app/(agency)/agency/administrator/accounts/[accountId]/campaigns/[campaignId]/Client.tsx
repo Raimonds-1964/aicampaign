@@ -1,12 +1,5 @@
 "use client";
 
-/**
- * Admin campaign details:
- * uses the shared CampaignDetails UI component.
- *
- * ✅ "View as manager" tiek rādīts pēc DB owner (AgencyCampaignOwner) ja store ownerId nav pieejams.
- */
-
 import { useMemo, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -39,15 +32,12 @@ export default function Client() {
     [s, campaignId]
   );
 
-  const storeOwnerId = (campaign as any)?.ownerId as string | undefined;
   const googleAdsHref = (campaign as any)?.googleAdsUrl ?? null;
 
-  // ✅ DB owner fallback
-  const [dbOwnerId, setDbOwnerId] = useState<string | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
         const r = await fetch("/api/agency/admin/campaign-owner", {
@@ -56,33 +46,17 @@ export default function Client() {
           body: JSON.stringify({ campaignId }),
           cache: "no-store",
         });
-
-        const data = (await r.json().catch(() => null)) as OwnerResp | null;
+        const data = (await r.json()) as OwnerResp;
         if (!alive) return;
-
-        if (!r.ok || !data || !("ok" in data) || !data.ok) {
-          setDbOwnerId(null);
-          return;
-        }
-
-        setDbOwnerId(data.ownerId ?? null);
+        if ("ok" in data && data.ok) setOwnerId(data.ownerId);
       } catch {
-        if (!alive) return;
-        setDbOwnerId(null);
+        // ignore
       }
     })();
-
     return () => {
       alive = false;
     };
   }, [campaignId]);
-
-  const effectiveOwnerId =
-    storeOwnerId && storeOwnerId !== ADMIN_OWNER_ID
-      ? storeOwnerId
-      : dbOwnerId && dbOwnerId !== ADMIN_OWNER_ID
-      ? dbOwnerId
-      : null;
 
   const fallbackHref = `/agency/administrator/accounts/${encodeURIComponent(
     accountId
@@ -96,19 +70,17 @@ export default function Client() {
     router.push(fallbackHref);
   }, [router, fallbackHref]);
 
-  // ✅ Adminā rādām "View as manager" tikai, ja ir reāls manager ownerId
-  const topRightLabel = effectiveOwnerId ? (
-    <a
-      className="text-sm font-semibold text-white/80 underline decoration-white/20 underline-offset-4 hover:decoration-white/50"
-      href={`/agency/manager/campaigns?managerId=${encodeURIComponent(
-        effectiveOwnerId
-      )}`}
-      target="_blank"
-      rel="noreferrer noopener"
-    >
-      View as manager ↗
-    </a>
-  ) : null;
+  const topRightLabel =
+    ownerId && ownerId !== ADMIN_OWNER_ID ? (
+      <a
+        className="text-sm font-semibold text-white/80 underline decoration-white/20 underline-offset-4 hover:decoration-white/50"
+        href={`/agency/manager/campaigns?managerId=${encodeURIComponent(ownerId)}`}
+        target="_blank"
+        rel="noreferrer noopener"
+      >
+        View as manager ↗
+      </a>
+    ) : null;
 
   return (
     <CampaignDetails

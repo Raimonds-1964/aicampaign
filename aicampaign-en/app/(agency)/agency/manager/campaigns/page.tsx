@@ -1,10 +1,9 @@
-import { Suspense } from "react";
-import CampaignsClient from "./CampaignsClient";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+import Client from "./Client";
 
 export default function Page() {
-  return (
-    <Suspense fallback={null}>
-      <CampaignsClient />
-    </Suspense>
-  );
+  return <Client />;
 }
