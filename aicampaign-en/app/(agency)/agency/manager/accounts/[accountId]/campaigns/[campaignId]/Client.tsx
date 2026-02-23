@@ -1,13 +1,7 @@
 "use client";
 
-/**
- * Manager campaign details:
- * uses the shared CampaignDetails UI component.
- * Keeps Admin/Manager view synced.
- */
-
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import {
   useManagerStore,
@@ -36,14 +30,10 @@ export default function Client() {
   const accountId = params?.accountId ?? "";
   const campaignId = params?.campaignId ?? "";
 
-  const sp = useSearchParams();
   const router = useRouter();
   const s = useManagerStore();
 
   const [me, setMe] = useState<MeResponse | null>(null);
-
-  // Admin "View as manager" pārliek managerId URLā, lai detaļas saglabā kontekstu
-  const managerIdFromUrl = sp.get("managerId") ?? "";
 
   useEffect(() => {
     let alive = true;
@@ -65,7 +55,6 @@ export default function Client() {
     };
   }, []);
 
-  // Try to resolve from manager store (robust even if selectors are minimal)
   const account = useMemo(() => {
     const accounts = (managerSelectors as any).accounts?.(s) ?? [];
     return accounts.find((a: any) => String(a?.id) === String(accountId)) ?? null;
@@ -87,19 +76,7 @@ export default function Client() {
 
   const googleAdsHref = (campaign as any)?.googleAdsUrl ?? null;
 
-  /**
-   * Browser-friendly back behavior with a safe fallback:
-   * - if there's history: router.back()
-   * - if opened directly:
-   *    - ADMIN + ?managerId => back to campaigns with same ?managerId
-   *    - MANAGER => back to normal manager campaigns
-   */
-  const fallbackHref = useMemo(() => {
-    if (me && "ok" in me && me.ok && me.member.role === "ADMIN" && managerIdFromUrl) {
-      return `/agency/manager/campaigns?managerId=${encodeURIComponent(managerIdFromUrl)}`;
-    }
-    return "/agency/manager/campaigns";
-  }, [me, managerIdFromUrl]);
+  const fallbackHref = "/agency/manager/campaigns";
 
   const handleBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -107,7 +84,21 @@ export default function Client() {
       return;
     }
     router.push(fallbackHref);
-  }, [router, fallbackHref]);
+  }, [router]);
+
+  // Ja nav member -> nav piekļuves (nevis demo)
+  if (me && "error" in me) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-10">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white">
+          <div className="text-xl font-semibold">Nav piekļuves manager panelim</div>
+          <div className="mt-2 text-white/60">
+            Kļūda: <span className="font-mono">{me.error}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <CampaignDetails
@@ -119,7 +110,6 @@ export default function Client() {
       backHref="#"
       onBack={handleBack as any}
       googleAdsHref={googleAdsHref}
-      // No topRightLabel needed in manager view (Admin has "View as manager")
       topRightLabel={null}
     />
   );

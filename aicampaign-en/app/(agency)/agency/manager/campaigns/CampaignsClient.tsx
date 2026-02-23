@@ -44,7 +44,6 @@ type MeOk = {
     workspaceName: string | null;
   };
 };
-
 type MeErr = { ok?: false; error: string; details?: unknown };
 type MeResp = MeOk | MeErr;
 
@@ -75,7 +74,6 @@ export default function Client() {
     };
   }, []);
 
-  // ja nav member -> nav piekļuves
   if (me && !isOk(me)) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-10">
@@ -83,6 +81,9 @@ export default function Client() {
           <div className="text-xl font-semibold">Nav piekļuves manager panelim</div>
           <div className="mt-2 text-white/60">
             Kļūda: <span className="font-mono">{me.error}</span>
+          </div>
+          <div className="mt-4 text-white/60">
+            Ja tev jābūt managerim, atver invite linku un pieņem to (ar Google login).
           </div>
         </div>
       </div>

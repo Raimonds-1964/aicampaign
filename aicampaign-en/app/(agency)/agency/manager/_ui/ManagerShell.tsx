@@ -26,11 +26,7 @@ export default function ManagerShell({ children }: { children: React.ReactNode }
     ) {
       return "campaigns";
     }
-
-    if (pathname.startsWith("/agency/manager/ai-assistant")) {
-      return "ai-assistant";
-    }
-
+    if (pathname.startsWith("/agency/manager/ai-assistant")) return "ai-assistant";
     return "other";
   }, [pathname]);
 
