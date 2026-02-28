@@ -1,4 +1,4 @@
-﻿-- AlterTable
+-- AlterTable
 ALTER TABLE "AgencyCampaignOwner" ALTER COLUMN "updatedAt" DROP DEFAULT;
 
 -- DropTable
